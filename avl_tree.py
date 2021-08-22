@@ -224,11 +224,11 @@ def join2(Tl: AvlNode, Tr: AvlNode) -> AvlNode:
         Tl_dash, k = split_last(Tl)
         return join(Tl_dash, k, Tr)
 
-def insert(T: AvlNode, k: int):
+def insert(T: AvlNode, k: int) -> AvlNode:
     Tl, _, Tr = split(T, k)
     return join(Tl, k, Tr)
 
-def delete(T: AvlNode, k: int):
+def delete(T: AvlNode, k: int) -> AvlNode:
     Tl, _, Tr = split(T, k)
     return join2(Tl, Tr)
 

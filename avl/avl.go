@@ -3,9 +3,9 @@
 * [1] https://zhjwpku.com/assets/pdf/AED2-10-avl-paper.pdf
 * [2] https://www.cs.cmu.edu/~blelloch/papers/BFS16.pdf
 * [3] https://github.com/cmuparlay/PAM
-*/
+ */
 
-package main
+package avl
 
 import (
 	"fmt"
@@ -23,33 +23,33 @@ func Max(a, b *big.Int) *big.Int {
 }
 
 type Node struct {
-	key    *big.Int
-	left   *Node
-	right  *Node
-	parent *Node
-	height *big.Int
-	value  *big.Int
+	Key		*big.Int	`json:"key,omitempty"`
+	Left	*Node		`json:"left,omitempty"`
+	Right	*Node		`json:"right,omitempty"`
+	Parent	*Node		`json:"-"`
+	Height	*big.Int	`json:"-"`
+	Value	*big.Int	`json:"value,omitempty"`
 }
 
-func NewNode(key *big.Int, left, right *Node) *Node {
-	n := Node{key: key, left: left, right: right}
-	if n.left != nil {
-		n.left.parent = &n
+func NewNode(Key *big.Int, left, right *Node) *Node {
+	n := Node{Key: Key, Left: left, Right: right}
+	if n.Left != nil {
+		n.Left.Parent = &n
 	}
-	if n.right != nil {
-		n.right.parent = &n
+	if n.Right != nil {
+		n.Right.Parent = &n
 	}
-	n.height = big.NewInt(0)
+	n.Height = big.NewInt(0)
 	UpdateHeight(&n)
 	return &n
 }
 
 func (n *Node) PathDepth() uint64 {
 	depth := uint64(0)
-	ancestor := n.parent
+	ancestor := n.Parent
 	for ancestor != nil {
 		depth += 1
-		ancestor = ancestor.parent
+		ancestor = ancestor.Parent
 	}
 	return depth
 }
@@ -60,13 +60,13 @@ func (n *Node) WalkInOrder(w Walker) []interface{} {
 	var (
 		left_items, right_items []interface{}
 	)
-	if n.left != nil {
-		left_items = n.left.WalkInOrder(w)
+	if n.Left != nil {
+		left_items = n.Left.WalkInOrder(w)
 	} else {
 		left_items = make([]interface{}, 0)
 	}
-	if n.right != nil {
-		right_items = n.right.WalkInOrder(w)
+	if n.Right != nil {
+		right_items = n.Right.WalkInOrder(w)
 	} else {
 		right_items = make([]interface{}, 0)
 	}
@@ -86,11 +86,14 @@ func (n *Node) WalkNodesInOrder() []*Node {
 	return nodes
 }
 
-func (n *Node) WalkKeysInOrder() []*big.Int {
-	key_items := n.WalkInOrder(func(n *Node) interface{} { return n.key })
-	keys := make([]*big.Int, len(key_items))
+func (n *Node) WalkKeysInOrder() []uint64 {
+	if n.Key == nil {
+		return []uint64{}
+	}
+	key_items := n.WalkInOrder(func(n *Node) interface{} { return n.Key })
+	keys := make([]uint64, len(key_items))
 	for i := range key_items {
-		keys[i] = key_items[i].(*big.Int)
+		keys[i] = key_items[i].(*big.Int).Uint64()
 	}
 	return keys
 }
@@ -111,24 +114,24 @@ func Graph(n *Node, filename string) {
 	}
 	for _, n := range n.WalkNodesInOrder() {
 		left, right := "", ""
-		if n.left != nil {
+		if n.Left != nil {
 			left = "<L>L"
 		}
-		if n.right != nil {
+		if n.Right != nil {
 			right = "<R>R"
 		}
-		s := fmt.Sprintln(n.key, " [label=\"", left, "|{<C>", n.key, "|", n.value, "}|", right, "\" style=filled fillcolor=\"", colors[2], "\"];")
+		s := fmt.Sprintln(n.Key, " [label=\"", left, "|{<C>", n.Key, "|", n.Value, "}|", right, "\" style=filled fillcolor=\"", colors[2], "\"];")
 		if _, err := f.WriteString(s); err != nil {
 			log.Fatal(err)
 		}
-		if n.parent != nil {
+		if n.Parent != nil {
 			var direction string
-			if n.parent.left == n {
+			if n.Parent.Left == n {
 				direction = "L"
 			} else {
 				direction = "R"
 			}
-			if _, err := f.WriteString(fmt.Sprintln(n.parent.key, ":", direction, " -> ", n.key, ":C;")); err != nil {
+			if _, err := f.WriteString(fmt.Sprintln(n.Parent.Key, ":", direction, " -> ", n.Key, ":C;")); err != nil {
 				log.Fatal(err)
 			}
 		}
@@ -154,31 +157,34 @@ func GraphAndPicture(n *Node, filename string) {
 
 func Expose(n *Node) (*Node, *big.Int, *Node) {
 	if n != nil {
-		return n.left, n.key, n.right
+		return n.Left, n.Key, n.Right
 	}
 	return nil, nil, nil
 }
 
 func Height(n *Node) *big.Int {
-	if n != nil {
-		return n.height
+	if n != nil && n.Height != nil{
+		return n.Height
 	}
 	return big.NewInt(0)
 }
 
 func UpdateHeight(n *Node) *big.Int {
-	if n.left != nil {
-		if n.right != nil {
-			n.height.Add(Max(UpdateHeight(n.left), UpdateHeight(n.right)), big.NewInt(1))
+	if n.Height == nil {
+		n.Height = big.NewInt(0)
+	}
+	if n.Left != nil {
+		if n.Right != nil {
+			n.Height.Add(Max(UpdateHeight(n.Left), UpdateHeight(n.Right)), big.NewInt(1))
 		} else {
-			n.height.Add(UpdateHeight(n.left), big.NewInt(1))
+			n.Height.Add(UpdateHeight(n.Left), big.NewInt(1))
 		}
-	} else if n.right != nil {
-		if n.right != nil {
-			n.height.Add(UpdateHeight(n.right), big.NewInt(1))
+	} else if n.Right != nil {
+		if n.Right != nil {
+			n.Height.Add(UpdateHeight(n.Right), big.NewInt(1))
 		}
 	}
-	return n.height
+	return n.Height
 }
 
 func Update(n *Node) *Node {
@@ -187,42 +193,42 @@ func Update(n *Node) *Node {
 }
 
 func RotateLeft(x *Node) *Node {
-	y := x.right
-	z := y.left
-	y.left = x
-	x.right = z
+	y := x.Right
+	z := y.Left
+	y.Left = x
+	x.Right = z
 	Update(x)
 	Update(y)
 	return y
 }
 
 func RotateRight(x *Node) *Node {
-	y := x.left
-	z := y.right
-	y.right = x
-	x.left = z
+	y := x.Left
+	z := y.Right
+	y.Right = x
+	x.Left = z
 	Update(x)
 	Update(y)
 	return y
 }
 
 func DoubleRotateLeft(x *Node) *Node {
-	r := x.right
-	root := r.left
-	r.left = root.right
+	r := x.Right
+	root := r.Left
+	r.Left = root.Right
 	Update(r)
-	root.right = r
-	x.right = root
+	root.Right = r
+	x.Right = root
 	return RotateLeft(x)
 }
 
 func DoubleRotateRight(x *Node) *Node {
-	l := x.left
-	root := l.right
-	l.right = root.left
+	l := x.Left
+	root := l.Right
+	l.Right = root.Left
 	Update(l)
-	root.left = l
-	x.left = root
+	root.Left = l
+	x.Left = root
 	return RotateRight(x)
 }
 
@@ -235,9 +241,9 @@ func IsSingleRotation(n *Node, isLeft bool) bool {
 		return false
 	}
 	if isLeft {
-		return Height(n.left).Cmp(Height(n.right)) > 0
+		return Height(n.Left).Cmp(Height(n.Right)) > 0
 	} else {
-		return Height(n.left).Cmp(Height(n.right)) <= 0
+		return Height(n.Left).Cmp(Height(n.Right)) <= 0
 	}
 }
 
@@ -250,10 +256,10 @@ func JoinRight(n1 *Node, k *big.Int, n2 *Node) *Node {
 		return JoinBalanced(n1, k, n2)
 	}
 	n := n1 // TODO: check if clone is needed
-	n.right = JoinRight(n.right, k, n2)
-	n.right.parent = n
-	if IsLeftHeavy(n.right, n.left) {
-		if IsSingleRotation(n.right, false) {
+	n.Right = JoinRight(n.Right, k, n2)
+	n.Right.Parent = n
+	if IsLeftHeavy(n.Right, n.Left) {
+		if IsSingleRotation(n.Right, false) {
 			n = RotateLeft(n)
 		} else {
 			n = DoubleRotateLeft(n)
@@ -269,10 +275,10 @@ func JoinLeft(n1 *Node, k *big.Int, n2 *Node) *Node {
 		return JoinBalanced(n1, k, n2)
 	}
 	n := n2 // TODO: check if clone is needed
-	n.left = JoinLeft(n1, k, n.left)
-	n.left.parent = n
-	if IsLeftHeavy(n.left, n.right) {
-		if IsSingleRotation(n.left, true) {
+	n.Left = JoinLeft(n1, k, n.Left)
+	n.Left.Parent = n
+	if IsLeftHeavy(n.Left, n.Right) {
+		if IsSingleRotation(n.Left, true) {
 			n = RotateRight(n)
 		} else {
 			n = DoubleRotateRight(n)
@@ -295,8 +301,11 @@ func Join(n1 *Node, k *big.Int, n2 *Node) *Node {
 
 // Variable are named after SPLIT operation in paper [2]
 func Split(T *Node, k *big.Int) (*Node, bool, *Node) {
-	if T == nil {
+	if T == nil || T.Key == nil {
 		return nil, false, nil
+	}
+	if k == nil {
+		return T, false, nil
 	}
 	L, m, R := Expose(T)
 	if kmCmp := k.Cmp(m); kmCmp == 0 {
@@ -384,59 +393,4 @@ func Difference(T1, T2 *Node) *Node {
 		Tr := Difference(R1, R2) // parallelizable
 		return Join2(Tl, Tr)
 	}
-}
-
-func main() {
-	t1 := NewNode(big.NewInt(0), nil, nil)
-	fmt.Println("t1 keys: ", t1.WalkKeysInOrder())
-	t2 := NewNode(big.NewInt(18),
-		NewNode(big.NewInt(15), nil, nil), NewNode(big.NewInt(21), nil, nil),
-	)
-	fmt.Println("t2 keys: ", t2.WalkKeysInOrder())
- 	t3 := NewNode(big.NewInt(188),
-	 	NewNode(big.NewInt(155),
-			NewNode(big.NewInt(154), nil, nil), NewNode(big.NewInt(156), nil, nil),
-		),
-		NewNode(big.NewInt(210),
-			NewNode(big.NewInt(200),
-				NewNode(big.NewInt(199), nil, nil), NewNode(big.NewInt(202), nil, nil),
-			),
-			NewNode(big.NewInt(300),
-				NewNode(big.NewInt(201), nil, nil), NewNode(big.NewInt(1560), nil, nil),
-			),
-		),
-	)
-	fmt.Println("t3 keys: ", t3.WalkKeysInOrder())
-
-	j1 := Join(t2, big.NewInt(50), t3)
-	fmt.Println("j1 keys: ", j1.WalkKeysInOrder())
-	GraphAndPicture(j1, "j1")
-
-	t4 := NewNode(big.NewInt(19),
-		NewNode(big.NewInt(11), nil, nil), NewNode(big.NewInt(157), nil, nil),
-	)
-	fmt.Println("t4 keys: ", t4.WalkKeysInOrder())
-
-	u1 := Union(j1, t4)
-	fmt.Println("u1 keys: ", u1.WalkKeysInOrder())
-	GraphAndPicture(u1, "u1")
-
-	t5 := NewNode(big.NewInt(4),
-		NewNode(big.NewInt(1), nil, nil), NewNode(big.NewInt(5), nil, nil),
-	)
-	fmt.Println("t5 keys: ", t5.WalkKeysInOrder())
-	t6 := NewNode(big.NewInt(3),
-		NewNode(big.NewInt(2), nil, nil), NewNode(big.NewInt(7), nil, nil),
-	)
-	fmt.Println("t6 keys: ", t6.WalkKeysInOrder())
-	u2 := Union(t5, t6)
-	fmt.Println("u2 keys: ", u2.WalkKeysInOrder())
-	GraphAndPicture(u2, "u2")
-
-	d1 := Difference(u2, t5)
-	fmt.Println("d1 keys: ", d1.WalkKeysInOrder())
-	GraphAndPicture(d1, "d1")
-	d2 := Difference(u2, t6)
-	fmt.Println("d2 keys: ", d2.WalkKeysInOrder())
-	GraphAndPicture(d2, "d2")
 }

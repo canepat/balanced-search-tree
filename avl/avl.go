@@ -8,6 +8,7 @@
 package avl
 
 import (
+	"encoding/json"
 	"fmt"
 	"log"
 	"math/big"
@@ -23,7 +24,7 @@ func Max(a, b *big.Int) *big.Int {
 }
 
 type Node struct {
-	Key		*big.Int	`json:"key,omitempty"`
+	Key		*big.Int	`json:"key"`
 	Left	*Node		`json:"left,omitempty"`
 	Right	*Node		`json:"right,omitempty"`
 	Parent	*Node		`json:"-"`
@@ -57,6 +58,9 @@ func (n *Node) PathDepth() uint64 {
 type Walker func(*Node) interface{}
 
 func (n *Node) WalkInOrder(w Walker) []interface{} {
+	if n == nil || n.Key == nil {
+		return make([]interface{}, 0)
+	}
 	var (
 		left_items, right_items []interface{}
 	)
@@ -87,15 +91,27 @@ func (n *Node) WalkNodesInOrder() []*Node {
 }
 
 func (n *Node) WalkKeysInOrder() []uint64 {
-	if n.Key == nil {
-		return []uint64{}
-	}
 	key_items := n.WalkInOrder(func(n *Node) interface{} { return n.Key })
 	keys := make([]uint64, len(key_items))
 	for i := range key_items {
 		keys[i] = key_items[i].(*big.Int).Uint64()
 	}
 	return keys
+}
+
+func (n *Node) UnmarshalJSON(data []byte) error {
+	type NodeAlias Node
+	alias := &NodeAlias{}
+	err := json.Unmarshal(data, alias)
+	if err != nil {
+		return err
+	}
+	*n = Node(*alias)
+	if n.Key == nil {
+		return &json.InvalidUnmarshalError{}
+	}
+	UpdateHeight(n)
+	return nil
 }
 
 func Graph(n *Node, filename string) {
@@ -141,7 +157,7 @@ func Graph(n *Node, filename string) {
 	}
 }
 
-func GraphAndPicture(n *Node, filename string) {
+func GraphAndPicture(n *Node, filename string) error {
 	Graph(n, filename)
 	dotExecutable, _ := exec.LookPath("dot")
 	cmdDot := &exec.Cmd{
@@ -151,19 +167,20 @@ func GraphAndPicture(n *Node, filename string) {
 		Stderr: os.Stderr,
 	}
 	if err := cmdDot.Run(); err != nil {
-		fmt.Println("Error executing graphviz dot: ", err)
+		return err
 	}
+	return nil
 }
 
 func Expose(n *Node) (*Node, *big.Int, *Node) {
-	if n != nil {
+	if n != nil && n.Key != nil {
 		return n.Left, n.Key, n.Right
 	}
 	return nil, nil, nil
 }
 
 func Height(n *Node) *big.Int {
-	if n != nil && n.Height != nil{
+	if n != nil && n.Height != nil {
 		return n.Height
 	}
 	return big.NewInt(0)
@@ -232,6 +249,29 @@ func DoubleRotateRight(x *Node) *Node {
 	return RotateRight(x)
 }
 
+func (n *Node) HasBinarySearchTreeProperty() bool {
+	if n == nil {
+		return false
+	}
+	if n.Left != nil {
+		if n.Left.Key.Cmp(n.Key) > 0 {
+			return false
+		}
+		if !n.Left.HasBinarySearchTreeProperty() {
+			return false
+		}
+	}
+	if n.Right != nil {
+		if n.Right.Key.Cmp(n.Key) < 0 {
+			return false
+		}
+		if !n.Right.HasBinarySearchTreeProperty() {
+			return false
+		}
+	}
+	return true
+}
+
 func IsLeftHeavy(left, right *Node) bool {
 	return Height(left).Cmp(big.NewInt(0).Add(Height(right), big.NewInt(1))) > 0
 }
@@ -248,7 +288,17 @@ func IsSingleRotation(n *Node, isLeft bool) bool {
 }
 
 func JoinBalanced(left *Node, k *big.Int, right *Node) *Node {
-	return NewNode(k, left, right)
+	if k == nil {
+		if left == nil {
+			return right
+		}
+		if right == nil {
+			return left
+		}
+		return nil
+	} else {
+		return NewNode(k, left, right)
+	}
 }
 
 func JoinRight(n1 *Node, k *big.Int, n2 *Node) *Node {
@@ -336,6 +386,17 @@ func Join2(Tl, Tr *Node) *Node {
 	} else {
 		Tl_dash, k := SplitLast(Tl)
 		return Join(Tl_dash, k, Tr)
+	}
+}
+
+func Search(T *Node, k *big.Int) *Node {
+	if T == nil || k.Cmp(T.Key) == 0 {
+		return T
+	}
+	if k.Cmp(T.Key) < 0 {
+		return Search(T.Left, k)
+	} else {
+		return Search(T.Right, k)
 	}
 }
 

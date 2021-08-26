@@ -1,2 +1,2 @@
 # balanced-search-tree
-Python implementation of balanced search tree data structures
+Python and Go implementation of balanced search tree data structures

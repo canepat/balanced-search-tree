@@ -5,7 +5,6 @@ package avl
 
 import (
 	"encoding/json"
-	"fmt"
 	"math/big"
 	"testing"
 
@@ -42,11 +41,11 @@ func TestWalkKeysInOrder(t *testing.T) {
 	assert.Equal(t, t3.WalkKeysInOrder(), []uint64{188, 155, 154, 156, 210, 200, 199, 202, 300, 201, 1560}, "t3: in-order keys mismatch")
 }
 
-func TestHasBinarySearchTreeProperty(t *testing.T) {
+func TestIsBST(t *testing.T) {
 	trees := make([]*Node, 0)
-	trees = append(trees, &t0, t1, t2, t3)
+	trees = append(trees, nil, &t0, t1, t2, t3)
 	for _, tree := range trees {
-		assert.True(t, tree.HasBinarySearchTreeProperty(), "BST property failed for tree: ", tree)
+		assert.True(t, tree.IsBST(), "BST property failed for tree: ", tree)
 	}
 }
 
@@ -133,23 +132,22 @@ func TestMarshalingUnmarshaling(t *testing.T) {
 }
 
 func TestUnion(t *testing.T) {
-	input1 := []byte(`{"key":4,"left":{"key":1},"right":{"key":5}}`)
-	input2 := []byte(`{"key":3,"left":{"key":2},"right":{"key":7}}`)
-	var T1, T2 Node
-	if err1 := json.Unmarshal(input1, &T1); err1 != nil {
-		t.Fatal("JSON unmarshaling failed for ", string(input1))
+	input1 := []byte{67, 64, 60, 56, 231, 228, 202, 246, 241}
+	input2 := []byte{56}
+	var T1, T2 *Node
+	for _, b1 := range input1 {
+		T1 = Insert(T1, big.NewInt(int64(b1)))
 	}
-	if err2 := json.Unmarshal(input2, &T2); err2 != nil {
-		t.Fatal("JSON unmarshaling failed for ", string(input2))
+	assert.True(t, T1.IsBST(), "BST property failed for tree: ", T1)
+	for _, b2 := range input2 {
+		T2 = Insert(T2, big.NewInt(int64(b2)))
 	}
-	if !T1.HasBinarySearchTreeProperty() {
-		t.Fatal("BST property failed for tree: ", string(input1))
-	}
-	if !T2.HasBinarySearchTreeProperty() {
-		t.Fatal("BST property failed for tree: ", string(input2))
-	}
-	Tu := Union(&T1, &T2)
-	assert.True(t, Tu.HasBinarySearchTreeProperty(), "BST property failed for tree: ", Tu)
+	assert.True(t, T2.IsBST(), "BST property failed for tree: ", T2)
+
+	Tu := Union(T1, T2)
+
+	// Check BST property holds for Tu
+	assert.True(t, Tu.IsBST(), "BST property failed for tree: ", Tu)
 	// Check that *all* T1 nodes are present in Tu
 	for _, n1 := range T1.WalkNodesInOrder() {
 		search_result := Search(Tu, n1.Key)
@@ -164,37 +162,33 @@ func TestUnion(t *testing.T) {
 	}
 	// Check that *all* Tu nodes are present either in T1 or T2
 	for _, n := range Tu.WalkNodesInOrder() {
-		result1 := Search(&T1, n.Key)
+		result1 := Search(T1, n.Key)
 		if result1 == nil || result1.Key.Cmp(n.Key) != 0 {
-			result2 := Search(&T2, n.Key)
+			result2 := Search(T2, n.Key)
 			if result2 == nil || result2.Key.Cmp(n.Key) != 0 {
-				assert.FailNow(t, "search for n: ", n.Key.Uint64(), " failed both in T1 and T2")
+				t.Fatalf("search for n: %d failed both in T1 and T2", n.Key.Uint64())
 			}
 		}
 	}
 }
 
 func FuzzUnion(f *testing.F) {
-	f.Add([]byte(`{"key":4,"left":{"key":1},"right":{"key":5}}`), []byte(`{"key":3,"left":{"key":2},"right":{"key":7}}`))
-	f.Add([]byte(`{"key":4}`), []byte(`{}`))
-	f.Add([]byte(`{}`), []byte(`{"key":4}`))
-	f.Add([]byte(`{}`), []byte(`{}`))
-	f.Add([]byte(`{"key":3}`), []byte(`{"right":{}}`))
 	f.Fuzz(func (t *testing.T, input1 []byte, input2 []byte) {
 		t.Parallel()
-		var T1, T2 Node
-		if err1 := json.Unmarshal(input1, &T1); err1 != nil {
-			t.Skip()
+		var T1, T2 *Node
+		for _, b1 := range input1 {
+			T1 = Insert(T1, big.NewInt(int64(b1)))
 		}
-		if err2 := json.Unmarshal(input2, &T2); err2 != nil {
-			t.Skip()
+		assert.True(t, T1.IsBST(), "BST property failed for tree: ", T1)
+		for _, b2 := range input2 {
+			T2 = Insert(T2, big.NewInt(int64(b2)))
 		}
-		if !T1.HasBinarySearchTreeProperty() || !T2.HasBinarySearchTreeProperty() {
-			t.Skip()
-		}
-		Tu := Union(&T1, &T2)
+		assert.True(t, T2.IsBST(), "BST property failed for tree: ", T2)
+
+		Tu := Union(T1, T2)
+
 		// Check BST property holds for Tu
-		assert.True(t, Tu.HasBinarySearchTreeProperty(), "BST property failed for tree: ", Tu)
+		assert.True(t, Tu.IsBST(), "BST property failed for tree: ", Tu)
 		// Check that *all* T1 nodes are present in Tu
 		for _, n1 := range T1.WalkNodesInOrder() {
 			result := Search(Tu, n1.Key)
@@ -209,11 +203,11 @@ func FuzzUnion(f *testing.F) {
 		}
 		// Check that *all* Tu nodes are present either in T1 or T2
 		for _, n := range Tu.WalkNodesInOrder() {
-			result1 := Search(&T1, n.Key)
+			result1 := Search(T1, n.Key)
 			if result1 == nil || result1.Key.Cmp(n.Key) != 0 {
-				result2 := Search(&T2, n.Key)
+				result2 := Search(T2, n.Key)
 				if result2 == nil || result2.Key.Cmp(n.Key) != 0 {
-					assert.FailNow(t, fmt.Sprintf("search for n: %d failed both in T1 and T2", n.Key.Uint64()))
+					t.Fatalf("search for n: %d failed both in T1 and T2", n.Key.Uint64())
 				}
 			}
 		}

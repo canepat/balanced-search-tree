@@ -249,15 +249,15 @@ func DoubleRotateRight(x *Node) *Node {
 	return RotateRight(x)
 }
 
-func (n *Node) HasBinarySearchTreeProperty() bool {
+func (n *Node) IsBST() bool {
 	if n == nil {
-		return false
+		return true
 	}
 	if n.Left != nil {
 		if n.Left.Key.Cmp(n.Key) > 0 {
 			return false
 		}
-		if !n.Left.HasBinarySearchTreeProperty() {
+		if !n.Left.IsBST() {
 			return false
 		}
 	}
@@ -265,7 +265,7 @@ func (n *Node) HasBinarySearchTreeProperty() bool {
 		if n.Right.Key.Cmp(n.Key) < 0 {
 			return false
 		}
-		if !n.Right.HasBinarySearchTreeProperty() {
+		if !n.Right.IsBST() {
 			return false
 		}
 	}
@@ -305,7 +305,12 @@ func JoinRight(n1 *Node, k *big.Int, n2 *Node) *Node {
 	if !IsLeftHeavy(n1, n2) {
 		return JoinBalanced(n1, k, n2)
 	}
-	n := n1 // TODO: check if clone is needed
+	var n *Node
+	if n1 == nil {
+		n = nil
+	} else {
+		n = NewNode(n1.Key, n1.Left, n1.Right)
+	}
 	n.Right = JoinRight(n.Right, k, n2)
 	n.Right.Parent = n
 	if IsLeftHeavy(n.Right, n.Left) {
@@ -324,7 +329,12 @@ func JoinLeft(n1 *Node, k *big.Int, n2 *Node) *Node {
 	if !IsLeftHeavy(n2, n1) {
 		return JoinBalanced(n1, k, n2)
 	}
-	n := n2 // TODO: check if clone is needed
+	var n *Node
+	if n2 == nil {
+		n = nil
+	} else {
+		n = NewNode(n2.Key, n2.Left, n2.Right)
+	}
 	n.Left = JoinLeft(n1, k, n.Left)
 	n.Left.Parent = n
 	if IsLeftHeavy(n.Left, n.Right) {
@@ -390,10 +400,12 @@ func Join2(Tl, Tr *Node) *Node {
 }
 
 func Search(T *Node, k *big.Int) *Node {
-	if T == nil || k.Cmp(T.Key) == 0 {
-		return T
+	if T == nil || T.Key == nil || k == nil {
+		return nil
 	}
-	if k.Cmp(T.Key) < 0 {
+	if k.Cmp(T.Key) == 0 {
+		return T
+	} else if k.Cmp(T.Key) < 0 {
 		return Search(T.Left, k)
 	} else {
 		return Search(T.Right, k)

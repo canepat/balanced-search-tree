@@ -5,6 +5,7 @@ package avl
 
 import (
 	"encoding/json"
+	"fmt"
 	"math/big"
 	"testing"
 
@@ -149,15 +150,27 @@ func TestUnion(t *testing.T) {
 	}
 	Tu := Union(&T1, &T2)
 	assert.True(t, Tu.HasBinarySearchTreeProperty(), "BST property failed for tree: ", Tu)
+	// Check that *all* T1 nodes are present in Tu
 	for _, n1 := range T1.WalkNodesInOrder() {
 		search_result := Search(Tu, n1.Key)
 		assert.NotNil(t, search_result, "search failed for n1: ", n1.Key)
 		assert.Equal(t, search_result.Key, n1.Key, "search for n1: ", n1.Key, " returned: ", search_result.Key)
 	}
+	// Check that *all* T2 nodes are present in Tu
 	for _, n2 := range T2.WalkNodesInOrder() {
 		search_result := Search(Tu, n2.Key)
 		assert.NotNil(t, search_result, "search failed for n2: ", n2.Key.Uint64())
 		assert.Equal(t, search_result.Key, n2.Key, "search for n2: ", n2.Key.Uint64(), " returned: ", search_result.Key.Uint64())
+	}
+	// Check that *all* Tu nodes are present either in T1 or T2
+	for _, n := range Tu.WalkNodesInOrder() {
+		result1 := Search(&T1, n.Key)
+		if result1 == nil || result1.Key.Cmp(n.Key) != 0 {
+			result2 := Search(&T2, n.Key)
+			if result2 == nil || result2.Key.Cmp(n.Key) != 0 {
+				assert.FailNow(t, "search for n: ", n.Key.Uint64(), " failed both in T1 and T2")
+			}
+		}
 	}
 }
 
@@ -184,11 +197,25 @@ func FuzzUnion(f *testing.F) {
 		assert.True(t, Tu.HasBinarySearchTreeProperty(), "BST property failed for tree: ", Tu)
 		// Check that *all* T1 nodes are present in Tu
 		for _, n1 := range T1.WalkNodesInOrder() {
-			assert.Equal(t, Search(Tu, n1.Key).Key, n1.Key)
+			result := Search(Tu, n1.Key)
+			assert.NotNil(t, result, "search failed for n1: ", n1.Key)
+			assert.Equal(t, result.Key, n1.Key, "search for n1: ", n1.Key, " returned: ", result.Key)
 		}
 		// Check that *all* T2 nodes are present in Tu
 		for _, n2 := range T2.WalkNodesInOrder() {
-			assert.Equal(t, Search(Tu, n2.Key).Key, n2.Key)
+			result := Search(Tu, n2.Key)
+			assert.NotNil(t, result, "search failed for n2: ", n2.Key.Uint64())
+			assert.Equal(t, result.Key, n2.Key, "search for n2: ", n2.Key.Uint64(), " returned: ", result.Key.Uint64())
+		}
+		// Check that *all* Tu nodes are present either in T1 or T2
+		for _, n := range Tu.WalkNodesInOrder() {
+			result1 := Search(&T1, n.Key)
+			if result1 == nil || result1.Key.Cmp(n.Key) != 0 {
+				result2 := Search(&T2, n.Key)
+				if result2 == nil || result2.Key.Cmp(n.Key) != 0 {
+					assert.FailNow(t, fmt.Sprintf("search for n: %d failed both in T1 and T2", n.Key.Uint64()))
+				}
+			}
 		}
 	})
 }

@@ -189,19 +189,19 @@ func FuzzUnion(f *testing.F) {
 
 		// Check BST property holds for Tu
 		assert.True(t, Tu.IsBST(), "BST property failed for tree: ", Tu)
-		// Check that *all* T1 nodes are present in Tu
+		// Check that *each* T1 node is present in Tu
 		for _, n1 := range T1.WalkNodesInOrder() {
 			result := Search(Tu, n1.Key)
 			assert.NotNil(t, result, "search failed for n1: ", n1.Key)
 			assert.Equal(t, result.Key, n1.Key, "search for n1: ", n1.Key, " returned: ", result.Key)
 		}
-		// Check that *all* T2 nodes are present in Tu
+		// Check that *each* T2 node is present in Tu
 		for _, n2 := range T2.WalkNodesInOrder() {
 			result := Search(Tu, n2.Key)
 			assert.NotNil(t, result, "search failed for n2: ", n2.Key.Uint64())
 			assert.Equal(t, result.Key, n2.Key, "search for n2: ", n2.Key.Uint64(), " returned: ", result.Key.Uint64())
 		}
-		// Check that *all* Tu nodes are present either in T1 or T2
+		// Check that *each* Tu node is present either in T1 or T2
 		for _, n := range Tu.WalkNodesInOrder() {
 			result1 := Search(T1, n.Key)
 			if result1 == nil || result1.Key.Cmp(n.Key) != 0 {
@@ -209,6 +209,52 @@ func FuzzUnion(f *testing.F) {
 				if result2 == nil || result2.Key.Cmp(n.Key) != 0 {
 					t.Fatalf("search for n: %d failed both in T1 and T2", n.Key.Uint64())
 				}
+			}
+		}
+	})
+}
+
+func FuzzDifference(f *testing.F) {
+	f.Fuzz(func (t *testing.T, input1 []byte, input2 []byte) {
+		t.Parallel()
+		var T1, T2 *Node
+		for _, b1 := range input1 {
+			T1 = Insert(T1, big.NewInt(int64(b1)))
+		}
+		assert.True(t, T1.IsBST(), "BST property failed for tree: ", T1)
+		for _, b2 := range input2 {
+			T2 = Insert(T2, big.NewInt(int64(b2)))
+		}
+		assert.True(t, T2.IsBST(), "BST property failed for tree: ", T2)
+
+		Td := Difference(T1, T2)
+
+		// Check BST property holds for Td
+		assert.True(t, Td.IsBST(), "BST property failed for tree: ", Td)
+		// Check that *each* T1 node is present either in Td or in T2
+		for _, n1 := range T1.WalkNodesInOrder() {
+			result := Search(Td, n1.Key)
+			if result == nil || result.Key.Cmp(n1.Key) != 0 {
+				result2 := Search(T2, n1.Key)
+				if result2 == nil || result2.Key.Cmp(n1.Key) != 0 {
+					t.Fatalf("search for n1: %d failed both in Td and T2", n1.Key.Uint64())
+				}
+			}
+		}
+		// Check that *each* T2 node is not present in Td
+		for _, n2 := range T2.WalkNodesInOrder() {
+			result := Search(Td, n2.Key)
+			assert.Nil(t, result, "search successful for n2: ", n2.Key.Uint64())
+		}
+		// Check that *each* Td node is present in T1 but not in T2
+		for _, n := range Td.WalkNodesInOrder() {
+			result1 := Search(T1, n.Key)
+			if result1 == nil || result1.Key.Cmp(n.Key) != 0 {
+				t.Fatalf("search for n: %d failed in T1", n.Key.Uint64())
+			}
+			result2 := Search(T2, n.Key)
+			if result2 != nil && result2.Key.Cmp(n.Key) == 0 {
+				t.Fatalf("search for n: %d successful in T2", n.Key.Uint64())
 			}
 		}
 	})

@@ -24,6 +24,7 @@ func Max(a, b *big.Int) *big.Int {
 }
 
 type Node struct {
+	Path	string		`json:"-"`
 	Key		*big.Int	`json:"key"`
 	Left	*Node		`json:"left,omitempty"`
 	Right	*Node		`json:"right,omitempty"`
@@ -41,6 +42,7 @@ func NewNode(Key *big.Int, left, right *Node) *Node {
 		n.Right.Parent = &n
 	}
 	n.Height = big.NewInt(0)
+	UpdatePath(&n, "M")
 	UpdateHeight(&n)
 	return &n
 }
@@ -97,6 +99,15 @@ func (n *Node) WalkKeysInOrder() []uint64 {
 		keys[i] = key_items[i].(*big.Int).Uint64()
 	}
 	return keys
+}
+
+func (n *Node) WalkPathsInOrder() []string {
+	path_items := n.WalkInOrder(func(n *Node) interface{} { return n.Path })
+	paths := make([]string, len(path_items))
+	for i := range path_items {
+		paths[i] = path_items[i].(string)
+	}
+	return paths
 }
 
 func (n *Node) UnmarshalJSON(data []byte) error {
@@ -184,6 +195,16 @@ func Height(n *Node) *big.Int {
 		return n.Height
 	}
 	return big.NewInt(0)
+}
+
+func UpdatePath(n *Node, path string) {
+	n.Path = path
+	if n.Left != nil {
+		UpdatePath(n.Left, n.Path[:len(n.Path)-1] + "LM")
+	}
+	if n.Right != nil {
+		UpdatePath(n.Right, n.Path[:len(n.Path)-1] + "RM")
+	}
 }
 
 func UpdateHeight(n *Node) *big.Int {

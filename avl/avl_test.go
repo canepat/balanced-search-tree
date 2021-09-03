@@ -41,6 +41,13 @@ func TestWalkKeysInOrder(t *testing.T) {
 	assert.Equal(t, t3.WalkKeysInOrder(), []uint64{188, 155, 154, 156, 210, 200, 199, 202, 300, 201, 1560}, "t3: in-order keys mismatch")
 }
 
+func TestWalkPathsInOrder(t *testing.T) {
+	assert.Equal(t, []string{}, t0.WalkPathsInOrder(), "t0: in-order paths mismatch")
+	assert.Equal(t, []string{"M"}, t1.WalkPathsInOrder(), "t1: in-order paths mismatch")
+	assert.Equal(t, []string{"M", "LM", "RM"}, t2.WalkPathsInOrder(), "t2: in-order paths mismatch")
+	assert.Equal(t, []string{"M", "LM", "LLM", "LRM", "RM", "RLM", "RLLM", "RLRM", "RRM", "RRLM", "RRRM"}, t3.WalkPathsInOrder(), "t3: in-order paths mismatch")
+}
+
 func TestIsBST(t *testing.T) {
 	trees := make([]*Node, 0)
 	trees = append(trees, nil, &t0, t1, t2, t3)

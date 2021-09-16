@@ -32,8 +32,8 @@ type Node struct {
 	Value	*big.Int	`json:"value,omitempty"`
 }
 
-func NewNode(k, v *big.Int, left, right *Node) *Node {
-	n := Node{Key: k, Value: v, Left: left, Right: right}
+func NewNode(k, v *big.Int, T_L, T_R *Node) *Node {
+	n := Node{Key: k, Value: v, Left: T_L, Right: T_R}
 	n.Height = big.NewInt(1)
 	UpdatePath(&n, "M")
 	UpdateHeight(&n)
@@ -170,11 +170,11 @@ func GraphAndPicture(n *Node, filename string) error {
 	return nil
 }
 
-func Expose(n *Node) (*Node, *big.Int, *big.Int, *Node) {
+func Expose(n *Node) (*big.Int, *big.Int, *big.Int, *Node, *Node) {
 	if n != nil && n.Key != nil {
-		return n.Left, n.Key, n. Value, n.Right
+		return n.Key, n.Height, n.Value, n.Left, n.Right
 	}
-	return nil, nil, nil, nil
+	return nil, nil, nil, nil, nil
 }
 
 func Height(n *Node) *big.Int {
@@ -385,7 +385,7 @@ func Split(T *Node, k *big.Int) (*Node, bool, *Node) {
 	if k == nil {
 		return T, false, nil
 	}
-	L, m_k, m_v, R := Expose(T)
+	m_k, m_v, _, L, R := Expose(T)
 	if kmCmp := k.Cmp(m_k); kmCmp == 0 {
 		return L, true, R
 	} else if kmCmp < 0 {
@@ -398,13 +398,13 @@ func Split(T *Node, k *big.Int) (*Node, bool, *Node) {
 }
 
 // Variable are named after SPLIT operation in paper [2]
-func SplitLast(T *Node) (*Node, *big.Int, *big.Int) {
-	L, k, v, R := Expose(T)
+func SplitLast(T *Node) (*Node, *big.Int, *big.Int, *big.Int) {
+	k, v, h, L, R := Expose(T)
 	if R == nil {
-		return L, k, v
+		return L, k, v, h
 	} else {
-		T_dash, k_dash, v_dash := SplitLast(R)
-		return Join(L, k, v, T_dash), k_dash, v_dash
+		T_dash, k_dash, v_dash, h_dash := SplitLast(R)
+		return Join(L, k, v, T_dash), k_dash, v_dash, h_dash
 	}
 }
 
@@ -412,8 +412,8 @@ func Join2(Tl, Tr *Node) *Node {
 	if Tl == nil {
 		return Tr
 	} else {
-		Tl_dash, k, v := SplitLast(Tl)
-		return Join(Tl_dash, k, v, Tr)
+		T_L_dash, k, v, _ := SplitLast(Tl)
+		return Join(T_L_dash, k, v, Tr)
 	}
 }
 
@@ -446,7 +446,7 @@ func Union(T1, T2 *Node) *Node {
 	} else if T2 == nil {
 		return T1
 	} else {
-		L2, k2, v2, R2 := Expose(T2)
+		k2, v2, _, L2, R2 := Expose(T2)
 		L1, _, R1 := Split(T1, k2)
 		Tl := Union(L1, L2) // parallelizable
 		Tr := Union(R1, R2) // parallelizable
@@ -460,7 +460,7 @@ func Intersect(T1, T2 *Node) *Node {
 	} else if T2 == nil {
 		return nil
 	} else {
-		L2, k2, v2, R2 := Expose(T2)
+		k2, v2, _, L2, R2 := Expose(T2)
 		L1, b, R1 := Split(T1, k2)
 		Tl := Intersect(L1, L2) // parallelizable
 		Tr := Intersect(R1, R2) // parallelizable
@@ -478,7 +478,7 @@ func Difference(T1, T2 *Node) *Node {
 	} else if T2 == nil {
 		return T1
 	} else {
-		L2, k2, _, R2 := Expose(T2)
+		k2, _, _, L2, R2 := Expose(T2)
 		L1, _, R1 := Split(T1, k2)
 		Tl := Difference(L1, L2) // parallelizable
 		Tr := Difference(R1, R2) // parallelizable

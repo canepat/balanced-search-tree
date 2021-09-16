@@ -28,33 +28,16 @@ type Node struct {
 	Key		*big.Int	`json:"key"`
 	Left	*Node		`json:"left,omitempty"`
 	Right	*Node		`json:"right,omitempty"`
-	Parent	*Node		`json:"-"`
 	Height	*big.Int	`json:"-"`
 	Value	*big.Int	`json:"value,omitempty"`
 }
 
-func NewNode(Key *big.Int, left, right *Node) *Node {
-	n := Node{Key: Key, Left: left, Right: right}
-	if n.Left != nil {
-		n.Left.Parent = &n
-	}
-	if n.Right != nil {
-		n.Right.Parent = &n
-	}
-	n.Height = big.NewInt(0)
+func NewNode(k, v *big.Int, left, right *Node) *Node {
+	n := Node{Key: k, Value: v, Left: left, Right: right}
+	n.Height = big.NewInt(1)
 	UpdatePath(&n, "M")
 	UpdateHeight(&n)
 	return &n
-}
-
-func (n *Node) PathDepth() uint64 {
-	depth := uint64(0)
-	ancestor := n.Parent
-	for ancestor != nil {
-		depth += 1
-		ancestor = ancestor.Parent
-	}
-	return depth
 }
 
 type Walker func(*Node) interface{}
@@ -151,14 +134,15 @@ func Graph(n *Node, filename string) {
 		if _, err := f.WriteString(s); err != nil {
 			log.Fatal(err)
 		}
-		if n.Parent != nil {
-			var direction string
-			if n.Parent.Left == n {
-				direction = "L"
-			} else {
-				direction = "R"
+	}
+	for _, n := range n.WalkNodesInOrder() {
+		if n.Left != nil {
+			if _, err := f.WriteString(fmt.Sprintln(n.Key, ":L -> ", n.Left.Key, ":C;")); err != nil {
+				log.Fatal(err)
 			}
-			if _, err := f.WriteString(fmt.Sprintln(n.Parent.Key, ":", direction, " -> ", n.Key, ":C;")); err != nil {
+		}
+		if n.Right != nil {
+			if _, err := f.WriteString(fmt.Sprintln(n.Key, ":R -> ", n.Right.Key, ":C;")); err != nil {
 				log.Fatal(err)
 			}
 		}
@@ -169,11 +153,14 @@ func Graph(n *Node, filename string) {
 }
 
 func GraphAndPicture(n *Node, filename string) error {
-	Graph(n, filename)
+	graphDir := "testdata/graph/"
+	_ = os.MkdirAll(graphDir, os.ModePerm)
+	filepath := graphDir + filename
+	Graph(n, filepath)
 	dotExecutable, _ := exec.LookPath("dot")
 	cmdDot := &exec.Cmd{
 		Path: dotExecutable,
-		Args: []string{dotExecutable, "-Tpng", filename + ".dot", "-o", filename + ".png"},
+		Args: []string{dotExecutable, "-Tpng", filepath + ".dot", "-o", filepath + ".png"},
 		Stdout: os.Stdout,
 		Stderr: os.Stderr,
 	}
@@ -183,11 +170,11 @@ func GraphAndPicture(n *Node, filename string) error {
 	return nil
 }
 
-func Expose(n *Node) (*Node, *big.Int, *Node) {
+func Expose(n *Node) (*Node, *big.Int, *big.Int, *Node) {
 	if n != nil && n.Key != nil {
-		return n.Left, n.Key, n.Right
+		return n.Left, n.Key, n. Value, n.Right
 	}
-	return nil, nil, nil
+	return nil, nil, nil, nil
 }
 
 func Height(n *Node) *big.Int {
@@ -195,6 +182,10 @@ func Height(n *Node) *big.Int {
 		return n.Height
 	}
 	return big.NewInt(0)
+}
+
+func HeightAsInt(n *Node) int {
+	return int(Height(n).Uint64())
 }
 
 func UpdatePath(n *Node, path string) {
@@ -217,9 +208,11 @@ func UpdateHeight(n *Node) *big.Int {
 		} else {
 			n.Height.Add(UpdateHeight(n.Left), big.NewInt(1))
 		}
-	} else if n.Right != nil {
+	} else {
 		if n.Right != nil {
 			n.Height.Add(UpdateHeight(n.Right), big.NewInt(1))
+		} else {
+			n.Height = big.NewInt(1)
 		}
 	}
 	return n.Height
@@ -293,6 +286,10 @@ func (n *Node) IsBST() bool {
 	return true
 }
 
+func (n *Node) IsBalanced() bool {
+	return n == nil || !(IsLeftHeavy(n.Left, n.Right) || IsLeftHeavy(n.Right, n.Left))
+}
+
 func IsLeftHeavy(left, right *Node) bool {
 	return Height(left).Cmp(big.NewInt(0).Add(Height(right), big.NewInt(1))) > 0
 }
@@ -308,7 +305,7 @@ func IsSingleRotation(n *Node, isLeft bool) bool {
 	}
 }
 
-func JoinBalanced(left *Node, k *big.Int, right *Node) *Node {
+func JoinBalanced(left *Node, k, v *big.Int, right *Node) *Node {
 	if k == nil {
 		if left == nil {
 			return right
@@ -318,22 +315,22 @@ func JoinBalanced(left *Node, k *big.Int, right *Node) *Node {
 		}
 		return nil
 	} else {
-		return NewNode(k, left, right)
+		return NewNode(k, v, left, right)
 	}
 }
 
-func JoinRight(n1 *Node, k *big.Int, n2 *Node) *Node {
+func JoinRight(n1 *Node, k, v *big.Int, n2 *Node) *Node {
 	if !IsLeftHeavy(n1, n2) {
-		return JoinBalanced(n1, k, n2)
+		return JoinBalanced(n1, k, v, n2)
 	}
 	var n *Node
 	if n1 == nil {
 		n = nil
 	} else {
-		n = NewNode(n1.Key, n1.Left, n1.Right)
+		n = NewNode(n1.Key, n1.Value, n1.Left, n1.Right)
 	}
-	n.Right = JoinRight(n.Right, k, n2)
-	n.Right.Parent = n
+	n.Right = JoinRight(n.Right, k, v, n2)
+
 	if IsLeftHeavy(n.Right, n.Left) {
 		if IsSingleRotation(n.Right, false) {
 			n = RotateLeft(n)
@@ -346,18 +343,18 @@ func JoinRight(n1 *Node, k *big.Int, n2 *Node) *Node {
 	return n
 }
 
-func JoinLeft(n1 *Node, k *big.Int, n2 *Node) *Node {
+func JoinLeft(n1 *Node, k, v *big.Int, n2 *Node) *Node {
 	if !IsLeftHeavy(n2, n1) {
-		return JoinBalanced(n1, k, n2)
+		return JoinBalanced(n1, k, v, n2)
 	}
 	var n *Node
 	if n2 == nil {
 		n = nil
 	} else {
-		n = NewNode(n2.Key, n2.Left, n2.Right)
+		n = NewNode(n2.Key, n2.Value, n2.Left, n2.Right)
 	}
-	n.Left = JoinLeft(n1, k, n.Left)
-	n.Left.Parent = n
+	n.Left = JoinLeft(n1, k, v, n.Left)
+
 	if IsLeftHeavy(n.Left, n.Right) {
 		if IsSingleRotation(n.Left, true) {
 			n = RotateRight(n)
@@ -370,14 +367,14 @@ func JoinLeft(n1 *Node, k *big.Int, n2 *Node) *Node {
 	return n
 }
 
-func Join(n1 *Node, k *big.Int, n2 *Node) *Node {
+func Join(n1 *Node, k, v *big.Int, n2 *Node) *Node {
 	if IsLeftHeavy(n1, n2) {
-		return JoinRight(n1, k, n2)
+		return JoinRight(n1, k, v, n2)
 	}
 	if IsLeftHeavy(n2, n1) {
-		return JoinLeft(n1, k, n2)
+		return JoinLeft(n1, k, v, n2)
 	}
-	return JoinBalanced(n1, k, n2)
+	return JoinBalanced(n1, k, v, n2)
 }
 
 // Variable are named after SPLIT operation in paper [2]
@@ -388,26 +385,26 @@ func Split(T *Node, k *big.Int) (*Node, bool, *Node) {
 	if k == nil {
 		return T, false, nil
 	}
-	L, m, R := Expose(T)
-	if kmCmp := k.Cmp(m); kmCmp == 0 {
+	L, m_k, m_v, R := Expose(T)
+	if kmCmp := k.Cmp(m_k); kmCmp == 0 {
 		return L, true, R
 	} else if kmCmp < 0 {
 		L_l, b, L_r := Split(L, k)
-		return L_l, b, Join(L_r, m , R)
+		return L_l, b, Join(L_r, m_k, m_v, R)
 	} else {
 		R_l, b, R_r := Split(R, k)
-		return Join(L, m, R_l), b, R_r
+		return Join(L, m_k, m_v, R_l), b, R_r
 	}
 }
 
 // Variable are named after SPLIT operation in paper [2]
-func SplitLast(T *Node) (*Node, *big.Int) {
-	L, k, R := Expose(T)
+func SplitLast(T *Node) (*Node, *big.Int, *big.Int) {
+	L, k, v, R := Expose(T)
 	if R == nil {
-		return L, k
+		return L, k, v
 	} else {
-		T_dash, k_dash := SplitLast(R)
-		return Join(L, k, T_dash), k_dash
+		T_dash, k_dash, v_dash := SplitLast(R)
+		return Join(L, k, v, T_dash), k_dash, v_dash
 	}
 }
 
@@ -415,8 +412,8 @@ func Join2(Tl, Tr *Node) *Node {
 	if Tl == nil {
 		return Tr
 	} else {
-		Tl_dash, k := SplitLast(Tl)
-		return Join(Tl_dash, k, Tr)
+		Tl_dash, k, v := SplitLast(Tl)
+		return Join(Tl_dash, k, v, Tr)
 	}
 }
 
@@ -433,9 +430,9 @@ func Search(T *Node, k *big.Int) *Node {
 	}
 }
 
-func Insert(T *Node, k *big.Int) *Node {
+func Insert(T *Node, k, v *big.Int) *Node {
 	Tl, _, Tr := Split(T, k)
-	return Join(Tl, k, Tr)
+	return Join(Tl, k, v, Tr)
 }
 
 func Delete(T *Node, k *big.Int) *Node {
@@ -449,11 +446,11 @@ func Union(T1, T2 *Node) *Node {
 	} else if T2 == nil {
 		return T1
 	} else {
-		L2, k2, R2 := Expose(T2)
+		L2, k2, v2, R2 := Expose(T2)
 		L1, _, R1 := Split(T1, k2)
 		Tl := Union(L1, L2) // parallelizable
 		Tr := Union(R1, R2) // parallelizable
-		return Join(Tl, k2, Tr)
+		return Join(Tl, k2, v2, Tr)
 	}
 }
 
@@ -463,12 +460,12 @@ func Intersect(T1, T2 *Node) *Node {
 	} else if T2 == nil {
 		return nil
 	} else {
-		L2, k2, R2 := Expose(T2)
+		L2, k2, v2, R2 := Expose(T2)
 		L1, b, R1 := Split(T1, k2)
 		Tl := Intersect(L1, L2) // parallelizable
 		Tr := Intersect(R1, R2) // parallelizable
 		if b {
-			return Join(Tl, k2, Tr)
+			return Join(Tl, k2, v2, Tr)
 		} else {
 			return Join2(Tl, Tr)
 		}
@@ -481,7 +478,7 @@ func Difference(T1, T2 *Node) *Node {
 	} else if T2 == nil {
 		return T1
 	} else {
-		L2, k2, R2 := Expose(T2)
+		L2, k2, _, R2 := Expose(T2)
 		L1, _, R1 := Split(T1, k2)
 		Tl := Difference(L1, L2) // parallelizable
 		Tr := Difference(R1, R2) // parallelizable

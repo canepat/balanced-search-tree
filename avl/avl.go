@@ -30,6 +30,7 @@ type Node struct {
 	Right	*Node		`json:"right,omitempty"`
 	Height	*big.Int	`json:"-"`
 	Value	*big.Int	`json:"value,omitempty"`
+	Exposed	bool		`json:"-"`
 }
 
 func NewNode(k, v *big.Int, T_L, T_R *Node) *Node {
@@ -172,6 +173,7 @@ func GraphAndPicture(n *Node, filename string) error {
 
 func Expose(n *Node) (*big.Int, *big.Int, *big.Int, *Node, *Node) {
 	if n != nil && n.Key != nil {
+		n.Exposed = true
 		return n.Key, n.Height, n.Value, n.Left, n.Right
 	}
 	return nil, nil, nil, nil, nil
@@ -319,17 +321,17 @@ func JoinBalanced(left *Node, k, v *big.Int, right *Node) *Node {
 	}
 }
 
-func JoinRight(n1 *Node, k, v *big.Int, n2 *Node) *Node {
-	if !IsLeftHeavy(n1, n2) {
-		return JoinBalanced(n1, k, v, n2)
+func JoinRight(T_L *Node, k, v *big.Int, T_R *Node) *Node {
+	if !IsLeftHeavy(T_L, T_R) {
+		return JoinBalanced(T_L, k, v, T_R)
 	}
 	var n *Node
-	if n1 == nil {
+	if T_L == nil {
 		n = nil
 	} else {
-		n = NewNode(n1.Key, n1.Value, n1.Left, n1.Right)
+		n = NewNode(T_L.Key, T_L.Value, T_L.Left, T_L.Right)
 	}
-	n.Right = JoinRight(n.Right, k, v, n2)
+	n.Right = JoinRight(n.Right, k, v, T_R)
 
 	if IsLeftHeavy(n.Right, n.Left) {
 		if IsSingleRotation(n.Right, false) {
@@ -343,17 +345,17 @@ func JoinRight(n1 *Node, k, v *big.Int, n2 *Node) *Node {
 	return n
 }
 
-func JoinLeft(n1 *Node, k, v *big.Int, n2 *Node) *Node {
-	if !IsLeftHeavy(n2, n1) {
-		return JoinBalanced(n1, k, v, n2)
+func JoinLeft(T_L *Node, k, v *big.Int, T_R *Node) *Node {
+	if !IsLeftHeavy(T_R, T_L) {
+		return JoinBalanced(T_L, k, v, T_R)
 	}
 	var n *Node
-	if n2 == nil {
+	if T_R == nil {
 		n = nil
 	} else {
-		n = NewNode(n2.Key, n2.Value, n2.Left, n2.Right)
+		n = NewNode(T_R.Key, T_R.Value, T_R.Left, T_R.Right)
 	}
-	n.Left = JoinLeft(n1, k, v, n.Left)
+	n.Left = JoinLeft(T_L, k, v, n.Left)
 
 	if IsLeftHeavy(n.Left, n.Right) {
 		if IsSingleRotation(n.Left, true) {
@@ -367,14 +369,14 @@ func JoinLeft(n1 *Node, k, v *big.Int, n2 *Node) *Node {
 	return n
 }
 
-func Join(n1 *Node, k, v *big.Int, n2 *Node) *Node {
-	if IsLeftHeavy(n1, n2) {
-		return JoinRight(n1, k, v, n2)
+func Join(T_L *Node, k, v *big.Int, T_R *Node) *Node {
+	if IsLeftHeavy(T_L, T_R) {
+		return JoinRight(T_L, k, v, T_R)
 	}
-	if IsLeftHeavy(n2, n1) {
-		return JoinLeft(n1, k, v, n2)
+	if IsLeftHeavy(T_R, T_L) {
+		return JoinLeft(T_L, k, v, T_R)
 	}
-	return JoinBalanced(n1, k, v, n2)
+	return JoinBalanced(T_L, k, v, T_R)
 }
 
 // Variable are named after SPLIT operation in paper [2]
@@ -408,12 +410,12 @@ func SplitLast(T *Node) (*Node, *big.Int, *big.Int, *big.Int) {
 	}
 }
 
-func Join2(Tl, Tr *Node) *Node {
-	if Tl == nil {
-		return Tr
+func Join2(T_L, T_R *Node) *Node {
+	if T_L == nil {
+		return T_R
 	} else {
-		T_L_dash, k, v, _ := SplitLast(Tl)
-		return Join(T_L_dash, k, v, Tr)
+		T_L_dash, k, v, _ := SplitLast(T_L)
+		return Join(T_L_dash, k, v, T_R)
 	}
 }
 
@@ -431,13 +433,13 @@ func Search(T *Node, k *big.Int) *Node {
 }
 
 func Insert(T *Node, k, v *big.Int) *Node {
-	Tl, _, Tr := Split(T, k)
-	return Join(Tl, k, v, Tr)
+	T_L, _, T_R := Split(T, k)
+	return Join(T_L, k, v, T_R)
 }
 
 func Delete(T *Node, k *big.Int) *Node {
-	Tl, _, Tr := Split(T, k)
-	return Join2(Tl, Tr)
+	T_L, _, T_R := Split(T, k)
+	return Join2(T_L, T_R)
 }
 
 func Union(T1, T2 *Node) *Node {

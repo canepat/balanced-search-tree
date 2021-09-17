@@ -23,13 +23,13 @@ func Max(a, b *big.Int) *big.Int {
 }
 
 type Node struct {
-	Path	string		`json:"-"`
-	Key		*big.Int	`json:"key"`
-	Left	*Node		`json:"left,omitempty"`
-	Right	*Node		`json:"right,omitempty"`
-	Height	*big.Int	`json:"-"`
-	Value	*big.Int	`json:"value,omitempty"`
-	Exposed	bool		`json:"-"`
+	Path	string
+	Key	*big.Int
+	Left	*Node
+	Right	*Node
+	Height	*big.Int
+	Value	*big.Int
+	Exposed	bool
 }
 
 func NewNode(k, v *big.Int, T_L, T_R *Node) *Node {

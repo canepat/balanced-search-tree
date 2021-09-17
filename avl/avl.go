@@ -8,7 +8,6 @@
 package avl
 
 import (
-	"encoding/json"
 	"fmt"
 	"log"
 	"math/big"
@@ -36,8 +35,8 @@ type Node struct {
 func NewNode(k, v *big.Int, T_L, T_R *Node) *Node {
 	n := Node{Key: k, Value: v, Left: T_L, Right: T_R}
 	n.Height = big.NewInt(1)
+	n.Height.Add(Max(Height(n.Left), Height(n.Right)), big.NewInt(1))
 	UpdatePath(&n, "M")
-	UpdateHeight(&n)
 	return &n
 }
 
@@ -92,21 +91,6 @@ func (n *Node) WalkPathsInOrder() []string {
 		paths[i] = path_items[i].(string)
 	}
 	return paths
-}
-
-func (n *Node) UnmarshalJSON(data []byte) error {
-	type NodeAlias Node
-	alias := &NodeAlias{}
-	err := json.Unmarshal(data, alias)
-	if err != nil {
-		return err
-	}
-	*n = Node(*alias)
-	if n.Key == nil {
-		return &json.InvalidUnmarshalError{}
-	}
-	UpdateHeight(n)
-	return nil
 }
 
 func Graph(n *Node, filename string) {
@@ -200,28 +184,8 @@ func UpdatePath(n *Node, path string) {
 	}
 }
 
-func UpdateHeight(n *Node) *big.Int {
-	if n.Height == nil {
-		n.Height = big.NewInt(0)
-	}
-	if n.Left != nil {
-		if n.Right != nil {
-			n.Height.Add(Max(UpdateHeight(n.Left), UpdateHeight(n.Right)), big.NewInt(1))
-		} else {
-			n.Height.Add(UpdateHeight(n.Left), big.NewInt(1))
-		}
-	} else {
-		if n.Right != nil {
-			n.Height.Add(UpdateHeight(n.Right), big.NewInt(1))
-		} else {
-			n.Height = big.NewInt(1)
-		}
-	}
-	return n.Height
-}
-
 func Update(n *Node) *Node {
-	UpdateHeight(n)
+	n.Height.Add(Max(Height(n.Left), Height(n.Right)), big.NewInt(1))
 	return n
 }
 

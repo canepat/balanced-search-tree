@@ -63,14 +63,14 @@ func readFromCsvFile(csvFileName string, scanFromCsv func(*bufio.Scanner) interf
 	return scanFromCsv(stateScanner)
 }
 
-/*func readStateChangesFromCsvFile(stateChangesFilename string) (d *cairo.Dict, err error) {
+func readStateChangesFromCsvFile(stateChangesFilename string) (d *cairo.Dict, err error) {
 	readFromCsvFile(stateChangesFilename, func(stateChanges *bufio.Scanner) interface{} {
 		d, err = cairo.StateChangesFromCsv(stateChanges)
 		d.GraphAndPicture("statechanges")
 		return d
 	})
 	return d, err
-}*/
+}
 
 func readStateFromCsvFile(stateFilename string) (t *cairo.Node, err error) {
 	readFromCsvFile(stateFilename, func(state *bufio.Scanner) interface{} {
@@ -81,14 +81,14 @@ func readStateFromCsvFile(stateFilename string) (t *cairo.Node, err error) {
 	return t, err
 }
 
-/*func readMappedStateFromCsvFile(stateFilename string) (t *cairo.Node, err error) {
+func readMappedStateFromCsvFile(stateFilename string) (t *cairo.Node, err error) {
 	readFromCsvFile(stateFilename, func(state *bufio.Scanner) interface{} {
 		t, err = cairo.MappedStateFromCsv(state)
 		t.GraphAndPicture("mapped_state")
 		return t
 	})
 	return t, err
-}*/
+}
 
 func main() {
 	if len(os.Args) < 4 {
@@ -97,13 +97,13 @@ func main() {
 	}
 	stateFileName := os.Args[1]
 	stateChangesFileName := os.Args[2]
-	//mappedStateChangesFileName := os.Args[3]
+	mappedStateChangesFileName := os.Args[3]
 	stateFileExt := filepath.Ext(stateFileName)
 	stateChangesFileExt := filepath.Ext(stateChangesFileName)
 	if stateFileExt == ".csv" && stateChangesFileExt == ".csv" {
 		readStateFromCsvFile(stateFileName)
-		//readStateChangesFromCsvFile(stateChangesFileName)
-		//readMappedStateFromCsvFile(mappedStateChangesFileName)
+		readStateChangesFromCsvFile(stateChangesFileName)
+		readMappedStateFromCsvFile(mappedStateChangesFileName)
 	} else {
 		readStateFromBinaryFile(stateFileName)
 		readStateChangesFromBinaryFile(stateChangesFileName)

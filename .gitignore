@@ -129,6 +129,7 @@ dmypy.json
 .pyre/
 
 # Graphviz files
+*.csv
 *.dot
 *.png
 

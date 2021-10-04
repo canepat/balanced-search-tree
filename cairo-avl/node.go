@@ -194,47 +194,57 @@ func StateFromCsv(state *bufio.Scanner) (t *Node, err error) {
 			fmt.Printf("nesting=%d\n", nesting)
 			key := ckItem[nesting]
 			fmt.Printf("key=%d\n", key)
-			var containerKey int64
-			if nesting > 0 {
-				containerKey = ckItem[nesting-1]
-			} else {
-				containerKey = -1
-			}
-			fmt.Printf("containerKey=%d\n", containerKey)
-
-			if treeByLevel[nesting] == nil {
-				treeByLevel[nesting] = make(map[int64]*Node)
-			}
-			tree := treeByLevel[nesting][containerKey]
-			fmt.Printf("tree: p=%p %+v\n", tree, tree)
 
 			var v *Felt
 			if nesting == numKeys-1 {
 				fmt.Printf("value=%d\n", item[numKeys])
 				v = NewFelt(item[numKeys])
 			}
-			k := NewFelt(key)
-			newTree := Insert(tree, k, v)
-			treeByLevel[nesting][containerKey] = newTree
-			n := treeByLevel[nesting][containerKey].Search(k) // TODO: Insert must return inserted node
-			treeByLevel[nesting][key] = n
-			fmt.Printf("old tree=%p new tree=%p n=%p\n", tree, treeByLevel[nesting][containerKey], n)
-			if nesting+1 < len(ckItem) {
-				containeeKey := ckItem[nesting+1]
-				fmt.Printf("containeeKey=%d\n", containeeKey)
-				//n.treeNested = Union(n.treeNested, treeByLevel[nesting+1][containeeKey].toDict())
-				containeeTree := treeByLevel[nesting+1][containeeKey]
-				fmt.Printf("containeeTree=%p %+v\n", containeeTree, containeeTree)
-				//n.treeNested = Insert(n.treeNested, containeeTree.key, containeeTree.value)
-				n.treeNested = treeByLevel[nesting+1][containeeKey]
-				fmt.Printf("n.treeNested=%p %+v\n", n.treeNested, n.treeNested)
-			} /*else {
-				n.treeNested = nil
-				fmt.Printf("n.treeNested=nil\n")
-			}*/
-			UpdatePath(n, n.path)
-			fmt.Printf("n.path=%s n.nesting=%d\n", n.path, n.nesting())
-			//fmt.Printf("tree: p=%p %+v\n", treeByLevel[nesting][containerKey], treeByLevel[nesting][containerKey])
+
+			if treeByLevel[nesting] == nil {
+				treeByLevel[nesting] = make(map[int64]*Node)
+			}
+
+			if nesting > 0 {
+				if treeByLevel[nesting-1] == nil {
+					treeByLevel[nesting-1] = make(map[int64]*Node)
+				}
+				containerKey := ckItem[nesting-1]
+				container := treeByLevel[nesting-1][containerKey]
+				fmt.Printf("containerKey=%d container=%p %+v\n", containerKey, container, container)
+
+				if container == nil {
+					container = Insert(nil, NewFelt(containerKey), nil)
+					treeByLevel[nesting-1][containerKey] = container
+					if treeByLevel[nesting][key] != nil {
+						container.treeNested = treeByLevel[nesting][key]
+					}
+				}
+				tree := container.treeNested
+				fmt.Printf("tree: p=%p %+v\n", tree, tree)
+				k := NewFelt(key)
+				if n := tree.Search(k); n != nil {
+					continue
+				}
+				newTree := Insert(tree, k, v)
+				fmt.Printf("newTree: p=%p %+v\n", newTree, newTree)
+				newNode := newTree.Search(k) // TODO: Insert must return inserted node
+				if treeByLevel[nesting][key] != nil {
+					newNode.treeNested = treeByLevel[nesting][key].treeNested
+				}
+				treeByLevel[nesting][key] = newNode
+				container.treeNested = newTree
+				fmt.Printf("newNode=%p %+v\n", newNode, newNode)
+				UpdatePath(container, container.path)
+				fmt.Printf("newNode.path=%s newNode.nesting=%d\n", newNode.path, newNode.nesting())
+			} else {
+				root := treeByLevel[nesting][key]
+				if root == nil {
+					root = Insert(nil, NewFelt(key), nil)
+					treeByLevel[nesting][key] = root
+				}
+				UpdatePath(root, root.path)
+			}
 		}
 	}
 	t = treeByLevel[0][0]
@@ -353,8 +363,8 @@ func (n *Node) Graph(filename string) {
 		} else {
 			down = n.value.String()
 		}
-		str := fmt.Sprintf("%d %p", n.key, n)
-		s := fmt.Sprintln(n.path, " [label=\"", left, "|{<C>", str/*n.key*/, "|", down, "}|", right, "\" style=filled fillcolor=\"", colors[n.nesting()], "\"];")
+		//str := fmt.Sprintf("k=%d p=%p", n.key, n)
+		s := fmt.Sprintln(n.path, " [label=\"", left, "|{<C>", /*str*/n.key, "|", down, "}|", right, "\" style=filled fillcolor=\"", colors[n.nesting()], "\"];")
 		if _, err := f.WriteString(s); err != nil {
 			log.Fatal(err)
 		}

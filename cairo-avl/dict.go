@@ -2,7 +2,9 @@ package cairo_avl
 
 import (
 	"bufio"
+	"encoding/binary"
 	"fmt"
+	"io"
 	"log"
 	"os"
 	"os/exec"
@@ -73,6 +75,13 @@ func (d *Dict) nesting() int {
 func dictToNode(d *Dict) (t *Node) {
 	if d != nil {
 		return NewNode(d.key, d.value, dictToNode(d.left), dictToNode(d.right), nil)
+	}
+	return nil
+}
+
+func nodeToDict(t *Node) (d *Dict) {
+	if t != nil {
+		return NewDict(t.key, t.value, nodeToDict(t.treeLeft), nodeToDict(t.treeRight), nil, nil)
 	}
 	return nil
 }
@@ -189,6 +198,27 @@ func StateChangesFromCsv(stateChanges *bufio.Scanner) (d *Dict, err error) {
 	return d, nil
 }
 
+func StateChangesFromBinary(statesReader *bufio.Reader) (d *Dict, err error) {
+	buffer := make([]byte, 4096)
+	var t *Node
+	for {
+		bytes_read, err := statesReader.Read(buffer)
+		fmt.Println("BINARY state changes bytes read: ", bytes_read, " err: ", err)
+		if err == io.EOF {
+			break
+		}
+		key_bytes_count := 4 * (bytes_read / 4)
+		fmt.Println("BINARY state changes key_bytes_count: ", key_bytes_count)
+		for i := 0; i < key_bytes_count; i += 4 {
+			key := binary.BigEndian.Uint32(buffer[i:i+4])
+			fmt.Println("BINARY state changes key: ", key)
+			t = Insert(t, NewFelt(int64(key)), nil)
+		}
+	}
+	d = nodeToDict(t)
+	return d, nil
+}
+
 func (d *Dict) Graph(filename string) {
 	colors := []string{"#FDF3D0", "#DCE8FA", "#D9E7D6", "#F1CFCD", "#F5F5F5", "#E1D5E7", "#FFE6CC", "white"}
 	f, err := os.OpenFile(filename + ".dot", os.O_RDWR | os.O_CREATE, 0755)
@@ -263,6 +293,8 @@ func (d *Dict) GraphAndPicture(filename string) error {
 	graphDir := "testdata/graph/"
 	_ = os.MkdirAll(graphDir, os.ModePerm)
 	filepath := graphDir + filename
+	_ = os.Remove(filepath + ".dot")
+	_ = os.Remove(filepath + ".png")
 	d.Graph(filepath)
 	dotExecutable, _ := exec.LookPath("dot")
 	cmdDot := &exec.Cmd{

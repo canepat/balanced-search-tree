@@ -129,7 +129,6 @@ dmypy.json
 .pyre/
 
 # Graphviz files
-*.csv
 *.dot
 *.png
 
@@ -138,3 +137,6 @@ dmypy.json
 
 # Golang
 testdata/
+
+*.bin
+*.csv

@@ -3,7 +3,6 @@ package main
 import (
 	"bufio"
 	"fmt"
-	"io"
 	"os"
 	"path/filepath"
 
@@ -24,35 +23,22 @@ func readFromBinaryFile(binaryFilename string, readFunction func(*bufio.Reader) 
 	return readFunction(stateReader)
 }
 
-func readStateFromBinaryFile(stateFilename string) (t *cairo.Node) {
+func readStateFromBinaryFile(stateFilename string) (t *cairo.Node, err error) {
 	readFromBinaryFile(stateFilename, func(statesReader *bufio.Reader) interface{} {
-		buffer := make([]byte, 4096)
-		for {
-			bytes_read, err := statesReader.Read(buffer)
-			fmt.Println("BINARY state bytes read: ", bytes_read, " err: ", err)
-			if err == io.EOF {
-				break
-			}
-		}
+		t, err = cairo.StateFromBinary(statesReader)
+		t.GraphAndPicture("state2")
 		return t
 	})
-	return t
+	return t, err
 }
 
-func readStateChangesFromBinaryFile(stateChangesFileName string) (t *cairo.Node) {
+func readStateChangesFromBinaryFile(stateChangesFileName string) (d *cairo.Dict, err error) {
 	readFromBinaryFile(stateChangesFileName, func(statesReader *bufio.Reader) interface{} {
-		buffer := make([]byte, 4096)
-		for {
-
-			bytes_read, err := statesReader.Read(buffer)
-			fmt.Println("CSV state bytes read: ", bytes_read, " err: ", err)
-			if err == io.EOF {
-				break
-			}
-		}
-		return t
+		d, err = cairo.StateChangesFromBinary(statesReader)
+		d.GraphAndPicture("statechanges2")
+		return d
 	})
-	return t
+	return d, err
 }
 
 func readFromCsvFile(csvFileName string, scanFromCsv func(*bufio.Scanner) interface{}) interface{} {
@@ -100,12 +86,33 @@ func main() {
 	mappedStateChangesFileName := os.Args[3]
 	stateFileExt := filepath.Ext(stateFileName)
 	stateChangesFileExt := filepath.Ext(stateChangesFileName)
+	var state *cairo.Node
+	var stateChanges *cairo.Dict
+	var err error
 	if stateFileExt == ".csv" && stateChangesFileExt == ".csv" {
-		readStateFromCsvFile(stateFileName)
-		readStateChangesFromCsvFile(stateChangesFileName)
+		state, err = readStateFromCsvFile(stateFileName)
+		if err != nil {
+			fmt.Printf("error reading CSV state file: %s", err)
+			os.Exit(1)
+		}
+		stateChanges, err = readStateChangesFromCsvFile(stateChangesFileName)
+		if err != nil {
+			fmt.Printf("error reading CSV state change file: %s", err)
+			os.Exit(1)
+		}
 		readMappedStateFromCsvFile(mappedStateChangesFileName)
 	} else {
-		readStateFromBinaryFile(stateFileName)
-		readStateChangesFromBinaryFile(stateChangesFileName)
+		state, err = readStateFromBinaryFile(stateFileName)
+		if err != nil {
+			fmt.Printf("error reading BIN state file: %s", err)
+			os.Exit(1)
+		}
+		stateChanges, err = readStateChangesFromBinaryFile(stateChangesFileName)
+		if err != nil {
+			fmt.Printf("error reading BIN state change file: %s", err)
+			os.Exit(1)
+		}
 	}
+	newState := cairo.Union(state, stateChanges)
+	newState.GraphAndPicture("newstate")
 }

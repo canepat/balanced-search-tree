@@ -2,7 +2,9 @@ package cairo_avl
 
 import (
 	"bufio"
+	"encoding/binary"
 	"fmt"
+	"io"
 	"log"
 	"os"
 	"os/exec"
@@ -327,6 +329,25 @@ func MappedStateFromCsv(state *bufio.Scanner) (t *Node, err error) {
 	}
 	if err := state.Err(); err != nil {
 		return nil, err
+	}
+	return t, nil
+}
+
+func StateFromBinary(statesReader *bufio.Reader) (t *Node, err error) {
+	buffer := make([]byte, 4096)
+	for {
+		bytes_read, err := statesReader.Read(buffer)
+		fmt.Println("BINARY state bytes read: ", bytes_read, " err: ", err)
+		if err == io.EOF {
+			break
+		}
+		key_bytes_count := 4 * (bytes_read / 4)
+		fmt.Println("BINARY state key_bytes_count: ", key_bytes_count)
+		for i := 0; i < key_bytes_count; i += 4 {
+			key := binary.BigEndian.Uint32(buffer[i:i+4])
+			fmt.Println("BINARY state key: ", key)
+			t = Insert(t, NewFelt(int64(key)), NewFelt(0))
+		}
 	}
 	return t, nil
 }

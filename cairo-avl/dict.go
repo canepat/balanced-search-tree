@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"math/rand"
 	"os"
 	"os/exec"
 	"strconv"
@@ -215,7 +216,18 @@ func StateChangesFromBinary(statesReader *bufio.Reader) (d *Dict, err error) {
 	}
 	t = Insert(/*T=*/nil, NewFelt(int64(0)), /*v=*/nil, Insert(/*T=*/nil, NewFelt(int64(0)), /*v=*/nil, t))
 	t.GraphAndPicture("t")
-	d = nodeToDict(t)
+	var node2Dict func(*Node) *Dict
+	node2Dict = func(n *Node) *Dict {
+		if n != nil {
+			if rand.Intn(2) == 1 {
+				return NewDict(n.key, n.value, node2Dict(n.treeLeft), node2Dict(n.treeRight), node2Dict(n.treeNested), nil)
+			} else {
+				return NewDict(n.key, n.value, node2Dict(n.treeLeft), node2Dict(n.treeRight), nil, node2Dict(n.treeNested))
+			}
+		}
+		return nil
+	}
+	d = node2Dict(t)
 	d.updatePath("M")
 	return d, nil
 }

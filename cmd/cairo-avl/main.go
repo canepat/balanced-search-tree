@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	cairo "github.com/canepat/bst/cairo-avl"
 )
@@ -13,6 +14,10 @@ func check(err error) {
 	if err != nil {
 		panic(err)
 	}
+}
+
+func outputNameFromInputName(inputFileName string) string {
+	return strings.ReplaceAll(inputFileName, ".", "_")
 }
 
 func readFromBinaryFile(binaryFilename string, readFunction func(*bufio.Reader) interface{}) interface{} {
@@ -26,7 +31,7 @@ func readFromBinaryFile(binaryFilename string, readFunction func(*bufio.Reader) 
 func readStateFromBinaryFile(stateFilename string) (t *cairo.Node, err error) {
 	readFromBinaryFile(stateFilename, func(statesReader *bufio.Reader) interface{} {
 		t, err = cairo.StateFromBinary(statesReader)
-		t.GraphAndPicture("state2")
+		t.GraphAndPicture(outputNameFromInputName(stateFilename))
 		return t
 	})
 	return t, err
@@ -35,7 +40,7 @@ func readStateFromBinaryFile(stateFilename string) (t *cairo.Node, err error) {
 func readStateChangesFromBinaryFile(stateChangesFileName string) (d *cairo.Dict, err error) {
 	readFromBinaryFile(stateChangesFileName, func(statesReader *bufio.Reader) interface{} {
 		d, err = cairo.StateChangesFromBinary(statesReader)
-		d.GraphAndPicture("statechanges2")
+		d.GraphAndPicture(outputNameFromInputName(stateChangesFileName))
 		return d
 	})
 	return d, err
@@ -49,28 +54,28 @@ func readFromCsvFile(csvFileName string, scanFromCsv func(*bufio.Scanner) interf
 	return scanFromCsv(stateScanner)
 }
 
-func readStateChangesFromCsvFile(stateChangesFilename string) (d *cairo.Dict, err error) {
-	readFromCsvFile(stateChangesFilename, func(stateChanges *bufio.Scanner) interface{} {
-		d, err = cairo.StateChangesFromCsv(stateChanges)
-		d.GraphAndPicture("statechanges")
-		return d
-	})
-	return d, err
-}
-
-func readStateFromCsvFile(stateFilename string) (t *cairo.Node, err error) {
-	readFromCsvFile(stateFilename, func(state *bufio.Scanner) interface{} {
+func readStateFromCsvFile(stateFileName string) (t *cairo.Node, err error) {
+	readFromCsvFile(stateFileName, func(state *bufio.Scanner) interface{} {
 		t, err = cairo.StateFromCsv(state)
-		t.GraphAndPicture("state")
+		t.GraphAndPicture(outputNameFromInputName(stateFileName))
 		return t
 	})
 	return t, err
 }
 
-func readMappedStateFromCsvFile(stateFilename string) (t *cairo.Node, err error) {
-	readFromCsvFile(stateFilename, func(state *bufio.Scanner) interface{} {
+func readStateChangesFromCsvFile(stateChangesFileName string) (d *cairo.Dict, err error) {
+	readFromCsvFile(stateChangesFileName, func(stateChanges *bufio.Scanner) interface{} {
+		d, err = cairo.StateChangesFromCsv(stateChanges)
+		d.GraphAndPicture(outputNameFromInputName(stateChangesFileName))
+		return d
+	})
+	return d, err
+}
+
+func readMappedStateFromCsvFile(stateFileName string) (t *cairo.Node, err error) {
+	readFromCsvFile(stateFileName, func(state *bufio.Scanner) interface{} {
 		t, err = cairo.MappedStateFromCsv(state)
-		t.GraphAndPicture("mapped_state")
+		t.GraphAndPicture(outputNameFromInputName(stateFileName))
 		return t
 	})
 	return t, err
@@ -114,5 +119,5 @@ func main() {
 		}
 	}
 	newState := cairo.Union(state, stateChanges)
-	newState.GraphAndPicture("newstate")
+	newState.GraphAndPicture("new_" + outputNameFromInputName(stateFileName))
 }

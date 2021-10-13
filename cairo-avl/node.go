@@ -216,7 +216,7 @@ func StateFromCsv(state *bufio.Scanner) (t *Node, err error) {
 				fmt.Printf("containerKey=%d container=%p %+v\n", containerKey, container, container)
 
 				if container == nil {
-					container = Insert(nil, NewFelt(containerKey), nil)
+					container = Insert(nil, NewFelt(containerKey), nil, nil) // TODO: try treeByLevel[nesting][key]
 					treeByLevel[nesting-1][containerKey] = container
 					if treeByLevel[nesting][key] != nil {
 						container.treeNested = treeByLevel[nesting][key]
@@ -228,7 +228,7 @@ func StateFromCsv(state *bufio.Scanner) (t *Node, err error) {
 				if n := tree.Search(k); n != nil {
 					continue
 				}
-				newTree := Insert(tree, k, v)
+				newTree := Insert(tree, k, v, /*N=*/nil)
 				fmt.Printf("newTree: p=%p %+v\n", newTree, newTree)
 				newNode := newTree.Search(k) // TODO: Insert must return inserted node
 				if treeByLevel[nesting][key] != nil {
@@ -242,7 +242,7 @@ func StateFromCsv(state *bufio.Scanner) (t *Node, err error) {
 			} else {
 				root := treeByLevel[nesting][key]
 				if root == nil {
-					root = Insert(nil, NewFelt(key), nil)
+					root = Insert(/*T=*/nil, NewFelt(key), /*v=*/nil, /*N=*/nil)
 					treeByLevel[nesting][key] = root
 				}
 				UpdatePath(root, root.path)
@@ -334,7 +334,7 @@ func MappedStateFromCsv(state *bufio.Scanner) (t *Node, err error) {
 }
 
 func StateFromBinary(statesReader *bufio.Reader) (t *Node, err error) {
-	buffer := make([]byte, 4096)
+	buffer := make([]byte, BufferSize)
 	for {
 		bytes_read, err := statesReader.Read(buffer)
 		fmt.Println("BINARY state bytes read: ", bytes_read, " err: ", err)
@@ -346,9 +346,18 @@ func StateFromBinary(statesReader *bufio.Reader) (t *Node, err error) {
 		for i := 0; i < key_bytes_count; i += 4 {
 			key := binary.BigEndian.Uint32(buffer[i:i+4])
 			fmt.Println("BINARY state key: ", key)
-			t = Insert(t, NewFelt(int64(key)), NewFelt(0))
+			var nestedTree *Node
+			if i % 10 == 0 {
+				fmt.Printf("Inserting nested key: %d\n", i)
+				nestedTree = Insert(/*T=*/nil, NewFelt(int64(i)), NewFelt(0), /*N=*/nil)
+				fmt.Printf("Inserted nested tree: %+v\n", nestedTree)
+			}
+			t = Insert(t, NewFelt(int64(key)), NewFelt(0), nestedTree)
 		}
 	}
+	t = Insert(/*T=*/nil, NewFelt(int64(0)), /*v=*/nil, Insert(/*T=*/nil, NewFelt(int64(0)), /*v=*/nil, t))
+	UpdatePath(t, "M")
+	fmt.Printf("t p=%p %+v\n", t, t)
 	return t, nil
 }
 

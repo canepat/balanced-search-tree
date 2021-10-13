@@ -20,14 +20,11 @@ type Dict struct {
 	right		*Dict
 	upserts		*Dict
 	deletes		*Dict
-	//compositeKey	string
-	//nesting		int
 	path		string
 }
 
-func NewDict(k, v *Felt, D_L, D_R, D_U, D_D *Dict/*, compositeKey string*/) *Dict {
-	//nesting := len(strings.Split(compositeKey, ";")) - 1
-	d := Dict{key: k, value: v, left: D_L, right: D_R, upserts: D_U, deletes: D_D/*, compositeKey: compositeKey, nesting: nesting*/}
+func NewDict(k, v *Felt, D_L, D_R, D_U, D_D *Dict) *Dict {
+	d := Dict{key: k, value: v, left: D_L, right: D_R, upserts: D_U, deletes: D_D}
 	d.height = NewFelt(1)
 	d.height.Add(MaxBigInt(heightDict(d.left), heightDict(d.right)), NewFelt(1))
 	d.updatePath("M")
@@ -49,10 +46,6 @@ func (d *Dict) updatePath(path string) {
 		d.deletes.updatePath(d.path[:len(d.path)-1] + "NDM")
 	}
 }
-
-/*func (d *Dict) nesting() int {
-	return strings.Count(d.path, "N")
-}*/
 
 func exposeDict(d *Dict) (k, v *Felt, D_L, D_R, D_U, D_D *Dict) {
 	if d != nil && d.key != nil {
@@ -81,7 +74,7 @@ func dictToNode(d *Dict) (t *Node) {
 
 func nodeToDict(t *Node) (d *Dict) {
 	if t != nil {
-		return NewDict(t.key, t.value, nodeToDict(t.treeLeft), nodeToDict(t.treeRight), nil, nil)
+		return NewDict(t.key, t.value, nodeToDict(t.treeLeft), nodeToDict(t.treeRight), nodeToDict(t.treeNested), nil)
 	}
 	return nil
 }
@@ -146,7 +139,6 @@ func StateChangesFromCsv(stateChanges *bufio.Scanner) (d *Dict, err error) {
 		if err != nil {
 			return nil, err
 		}
-		//compositeKey := tokens[1]
 		k, err := strconv.ParseInt(tokens[2], 10, 64)
 		if err != nil {
 			return nil, err
@@ -188,7 +180,7 @@ func StateChangesFromCsv(stateChanges *bufio.Scanner) (d *Dict, err error) {
 		D_D := dictByPointer[nestedDelete]
 		fmt.Println("previous D_D: ", D_D)
 		fmt.Println("p: ", p, " k: ", k, " v: ", v, " left: ", left, " right: ", right, " nestedUpsert: ", nestedUpsert, " nestedDelete: ", nestedDelete)
-		dictByPointer[p] = NewDict(NewFelt(k), v, D_L, D_R, D_U, D_D/*, compositeKey*/)
+		dictByPointer[p] = NewDict(NewFelt(k), v, D_L, D_R, D_U, D_D)
 		fmt.Println("dictByPointer[p]: ", dictByPointer[p])
 		d = dictByPointer[p]
 	}
@@ -199,7 +191,7 @@ func StateChangesFromCsv(stateChanges *bufio.Scanner) (d *Dict, err error) {
 }
 
 func StateChangesFromBinary(statesReader *bufio.Reader) (d *Dict, err error) {
-	buffer := make([]byte, 4096)
+	buffer := make([]byte, BufferSize)
 	var t *Node
 	for {
 		bytes_read, err := statesReader.Read(buffer)
@@ -212,10 +204,19 @@ func StateChangesFromBinary(statesReader *bufio.Reader) (d *Dict, err error) {
 		for i := 0; i < key_bytes_count; i += 4 {
 			key := binary.BigEndian.Uint32(buffer[i:i+4])
 			fmt.Println("BINARY state changes key: ", key)
-			t = Insert(t, NewFelt(int64(key)), nil)
+			var nestedTree *Node
+			if i % 10 == 0 {
+				fmt.Printf("Inserting nested key: %d\n", i)
+				nestedTree = Insert(/*T=*/nil, NewFelt(int64(i)), NewFelt(0), /*N=*/nil)
+				fmt.Printf("Inserted nested tree: %+v\n", nestedTree)
+			}
+			t = Insert(t, NewFelt(int64(key)), nil, nestedTree)
 		}
 	}
+	t = Insert(/*T=*/nil, NewFelt(int64(0)), /*v=*/nil, Insert(/*T=*/nil, NewFelt(int64(0)), /*v=*/nil, t))
+	t.GraphAndPicture("t")
 	d = nodeToDict(t)
+	d.updatePath("M")
 	return d, nil
 }
 

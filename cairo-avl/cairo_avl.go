@@ -152,9 +152,10 @@ func splitLast(T0 *Node) (T1 *Node, k, v *Felt, N *Node) {
 	}
 }
 
-func Insert(T *Node, k, v *Felt) *Node {
+func Insert(T *Node, k, v *Felt, N *Node) *Node {
 	T_L, T_R, T_N := split(T, k)
-	return join(k, v, nil, nil, T_L, T_R, T_N)
+	U_N := Union(N, nodeToDict(T_N))
+	return join(k, v, nil, nil, T_L, T_R, U_N)
 }
 
 func Union(T0 *Node, D *Dict) (T1 *Node) {

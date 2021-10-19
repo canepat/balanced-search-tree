@@ -29,7 +29,6 @@ type Node struct {
 	Right	*Node
 	Height	*big.Int
 	Value	*big.Int
-	Exposed	bool
 }
 
 func NewNode(k, v *big.Int, T_L, T_R *Node) *Node {
@@ -157,7 +156,6 @@ func GraphAndPicture(n *Node, filename string) error {
 
 func Expose(n *Node) (*big.Int, *big.Int, *big.Int, *Node, *Node) {
 	if n != nil && n.Key != nil {
-		n.Exposed = true
 		return n.Key, n.Height, n.Value, n.Left, n.Right
 	}
 	return nil, nil, nil, nil, nil

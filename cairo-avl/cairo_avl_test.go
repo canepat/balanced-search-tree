@@ -45,10 +45,10 @@ func init() {
 	dd = NewDict(NewFelt(21), NewFelt(10), nil, nil, nil, nil)
 }
 
-func TestBalancedHeight(t *testing.T) {
-	assert.Equal(t, big.NewInt(1), balancedHeight(big.NewInt(0), big.NewInt(0)), "Wrong balanced height (expected: 1)")
-	assert.Equal(t, big.NewInt(2), balancedHeight(big.NewInt(0), big.NewInt(1)), "Wrong balanced height (expected: 2)")
-	assert.Equal(t, big.NewInt(2), balancedHeight(big.NewInt(1), big.NewInt(0)), "Wrong balanced height (expected: 2)")
+func TestComputeHeight(t *testing.T) {
+	assert.Equal(t, big.NewInt(1), computeHeight(big.NewInt(0), big.NewInt(0)), "Wrong computed height (expected: 1)")
+	assert.Equal(t, big.NewInt(2), computeHeight(big.NewInt(0), big.NewInt(1)), "Wrong computed height (expected: 2)")
+	assert.Equal(t, big.NewInt(2), computeHeight(big.NewInt(1), big.NewInt(0)), "Wrong computed height (expected: 2)")
 }
 
 func TestBulkOperations(t *testing.T) {

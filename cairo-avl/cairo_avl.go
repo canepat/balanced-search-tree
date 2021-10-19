@@ -5,8 +5,7 @@ import (
 	"math/big"
 )
 
-func balancedHeight(h_L, h_R *Felt) (h *Felt) {
-	// Precondition: abs(h_L - h_R) <= 1
+func computeHeight(h_L, h_R *Felt) (h *Felt) {
 	if h_L.Cmp(h_R) == 0 {
 		return new(Felt).Add(h_L, big.NewInt(1))
 	} else if h_L.Cmp(new(Felt).Add(h_R, big.NewInt(1))) == 0 {
@@ -14,8 +13,7 @@ func balancedHeight(h_L, h_R *Felt) (h *Felt) {
 	} else if h_R.Cmp(new(Felt).Add(h_L, big.NewInt(1))) == 0 {
 		return new(Felt).Add(h_R, big.NewInt(1))
 	} else {
-		// balancedHeight is used with unbalanced trees
-		//panic("balancedHeight: L and R trees non balanced")
+		// L and R are unbalanced trees
 		return NewFelt(0).Add(MaxBigInt(h_L, h_R), NewFelt(1))
 	}
 }
@@ -25,9 +23,9 @@ func rotateLeft(k, v *Felt, T_L, T_R, T_N *Node) (h *Felt, T *Node) {
 	h_L := height(T_L)
 	h_RL := height(T_RL)
 	h_RR := height(T_RR)
-	h_dash := balancedHeight(h_L, h_RL)
+	h_dash := computeHeight(h_L, h_RL)
 	T_dash := makeNode(k, v, h_dash, T_L, T_RL, T_N)
-	h = balancedHeight(h_dash, h_RR)
+	h = computeHeight(h_dash, h_RR)
 	return h, makeNode(k_R, v_R, h, T_dash, T_RR, T_RN)
 }
 
@@ -36,9 +34,9 @@ func rotateRight(k, v *Felt, T_L, T_R, T_N *Node) (h *Felt, T *Node) {
 	h_R := height(T_R)
 	h_LL := height(T_LL)
 	h_LR := height(T_LR)
-	h_dash := balancedHeight(h_LR, h_R)
+	h_dash := computeHeight(h_LR, h_R)
 	T_dash := makeNode(k, v, h_dash, T_LR, T_R, T_N)
-	h = balancedHeight(h_dash, h_LL)
+	h = computeHeight(h_dash, h_LL)
 	return h, makeNode(k_L, v_L, h, T_LL, T_dash, T_LN)
 }
 
@@ -48,9 +46,9 @@ func joinLeft(k, v *Felt, T_L, T_R, T_N *Node) (h *Felt, T *Node) {
 	h_L := height(T_L)
 	h_RR := height(T_RR)
 	if h_RL.Cmp(new(Felt).Add(h_L, big.NewInt(1))) <= 0 {
-		h_dash := balancedHeight(h_L, h_RL)
+		h_dash := computeHeight(h_L, h_RL)
 		if h_dash.Cmp(new(Felt).Add(h_RR, big.NewInt(1))) <= 0 {
-			h = balancedHeight(h_RR, h_dash)
+			h = computeHeight(h_RR, h_dash)
 			return h, makeNode(k_R, v_R, h, makeNode(k, v, h_dash, T_L, T_RL, T_N), T_RR, T_RN)
 		} else {
 			_, T_dash := rotateLeft(k, v, T_L, T_RL, T_N)
@@ -59,7 +57,7 @@ func joinLeft(k, v *Felt, T_L, T_R, T_N *Node) (h *Felt, T *Node) {
 	} else {
 		h_dash, T_dash := joinLeft(k, v, T_L, T_RL, T_N)
 		if h_dash.Cmp(new(Felt).Add(h_RR, big.NewInt(1))) <= 0 {
-			h := balancedHeight(h_dash, h_RR)
+			h := computeHeight(h_dash, h_RR)
 			return h, makeNode(k_R, v_R, h, T_dash, T_RR, T_RN)
 		} else {
 			return rotateLeft(k_R, v_R, T_dash, T_RR, T_RN)
@@ -73,9 +71,9 @@ func joinRight(k, v *Felt, T_L, T_R, T_N *Node) (h *Felt, T *Node) {
 	h_R := height(T_R)
 	h_LL := height(T_LL)
 	if h_LR.Cmp(new(Felt).Add(h_R, big.NewInt(1))) <= 0 {
-		h_dash := balancedHeight(h_LR, h_R)
+		h_dash := computeHeight(h_LR, h_R)
 		if h_dash.Cmp(new(Felt).Add(h_LL, big.NewInt(1))) <= 0 {
-			h = balancedHeight(h_LL, h_dash)
+			h = computeHeight(h_LL, h_dash)
 			return h, makeNode(k_L, v_L, h, T_LL, makeNode(k, v, h_dash, T_LR, T_R, T_N), T_LN)
 		} else {
 			_, T_dash := rotateRight(k, v, T_LR, T_R, T_N)
@@ -84,7 +82,7 @@ func joinRight(k, v *Felt, T_L, T_R, T_N *Node) (h *Felt, T *Node) {
 	} else {
 		h_dash, T_dash := joinRight(k, v, T_LR, T_R, T_N)
 		if h_dash.Cmp(new(Felt).Add(h_LL, big.NewInt(1))) <= 0 {
-			h := balancedHeight(h_dash, h_LL)
+			h := computeHeight(h_dash, h_LL)
 			return h, makeNode(k_L, v_L, h, T_LL, T_dash, T_LN)
 		} else {
 			return rotateLeft(k_L, v_L, T_LL, T_dash, T_LN)
@@ -108,7 +106,7 @@ func join(k, v *Felt, D_U, D_D *Dict, T_L, T_R, T_N *Node) (T *Node) {
 		fmt.Println("join: T=", T)
 		return T
 	} else {
-		h := balancedHeight(h_L, h_R)
+		h := computeHeight(h_L, h_R)
 		fmt.Println("join: h=", h)
 		T = makeNode(k, v, h, T_L, T_R, N)
 		fmt.Printf("join: T p=%p %+v k=%d\n", T, T, k.Uint64())

@@ -443,7 +443,9 @@ func (n *Node) GraphAndPicture(filename string) error {
 
 func exposeNode(n *Node) (k, v *Felt, T_L, T_R, T_N *Node) {
 	if n != nil && n.key != nil {
-		n.exposed = true
+		if !n.exposed {
+			n.exposed = true
+		}
 		return n.key, n.value, n.treeLeft, n.treeRight, n.treeNested
 	}
 	return nil, nil, nil, nil, nil

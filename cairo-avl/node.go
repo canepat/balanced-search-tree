@@ -22,18 +22,20 @@ type Node struct {
 	treeRight	*Node
 	treeNested	*Node
 	exposed		bool
+	heightTaken	bool
 }
 
 func NewNode(k, v *Felt, T_L, T_R, T_N *Node) *Node {
 	n := Node{key: k, value: v, treeLeft: T_L, treeRight: T_R, treeNested: T_N}
 	n.height = NewFelt(1)
-	n.height.Add(MaxBigInt(height(n.treeLeft), height(n.treeRight)), NewFelt(1))
+	c := &Counters{}
+	n.height.Add(MaxBigInt(height(n.treeLeft, c), height(n.treeRight, c)), NewFelt(1))
 	UpdatePath(&n, "M")
 	return &n
 }
 
 func makeNode(k, v, h *Felt, T_L, T_R, T_N *Node) *Node {
-	n := Node{key: k, value: v, height: h, treeLeft: T_L, treeRight: T_R, treeNested: T_N}
+	n := Node{key: k, value: v, height: h, treeLeft: T_L, treeRight: T_R, treeNested: T_N, exposed: true}
 	UpdatePath(&n, "M")
 	return &n
 }
@@ -250,6 +252,7 @@ func StateFromCsv(state *bufio.Scanner) (t *Node, err error) {
 		}
 	}
 	t = treeByLevel[0][0]
+	t.resetFlags()
 	fmt.Printf("treeByLevel[0][0]: p=%p %+v\n", t, t)
 	return t, nil
 }
@@ -356,6 +359,7 @@ func StateFromBinary(statesReader *bufio.Reader) (t *Node, err error) {
 		}
 	}
 	t = Insert(/*T=*/nil, NewFelt(int64(0)), /*v=*/nil, Insert(/*T=*/nil, NewFelt(int64(0)), /*v=*/nil, t))
+	t.resetFlags()
 	UpdatePath(t, "M")
 	fmt.Printf("t p=%p %+v\n", t, t)
 	return t, nil
@@ -393,8 +397,8 @@ func (n *Node) Graph(filename string) {
 		} else {
 			down = n.value.String()
 		}
-		//str := fmt.Sprintf("k=%d p=%p", n.key, n)
-		s := fmt.Sprintln(n.path, " [label=\"", left, "|{<C>", /*str*/n.key, "|", down, "}|", right, "\" style=filled fillcolor=\"", colors[n.nesting()], "\"];")
+		str := fmt.Sprintf("k=%d [%t]", n.key, n.exposed)
+		s := fmt.Sprintln(n.path, " [label=\"", left, "|{<C>", str/*n.key*/, "|", down, "}|", right, "\" style=filled fillcolor=\"", colors[n.nesting()], "\"];")
 		if _, err := f.WriteString(s); err != nil {
 			log.Fatal(err)
 		}
@@ -441,9 +445,15 @@ func (n *Node) GraphAndPicture(filename string) error {
 	return nil
 }
 
-func exposeNode(n *Node) (k, v *Felt, T_L, T_R, T_N *Node) {
+func exposeNode(n *Node, c *Counters) (k, v *Felt, T_L, T_R, T_N *Node) {
 	if n != nil && n.key != nil {
 		if !n.exposed {
+			if n.heightTaken {
+				c.HeightCount--
+			} else {
+				n.heightTaken = true
+			}
+			c.ExposedCount++
 			n.exposed = true
 		}
 		return n.key, n.value, n.treeLeft, n.treeRight, n.treeNested
@@ -451,15 +461,20 @@ func exposeNode(n *Node) (k, v *Felt, T_L, T_R, T_N *Node) {
 	return nil, nil, nil, nil, nil
 }
 
-func height(n *Node) *Felt {
+func height(n *Node, c *Counters) *Felt {
 	if n != nil && n.height != nil {
+		if !n.exposed && !n.heightTaken {
+			c.HeightCount++
+		}
+		n.heightTaken = true
 		return n.height
 	}
 	return NewFelt(0)
 }
 
 func HeightAsInt(n *Node) int {
-	return int(height(n).Uint64())
+	c := &Counters{}
+	return int(height(n, c).Uint64())
 }
 
 func UpdatePath(n *Node, path string) {
@@ -473,11 +488,6 @@ func UpdatePath(n *Node, path string) {
 	if n.treeRight != nil {
 		UpdatePath(n.treeRight, n.path[:len(n.path)-1] + "RM")
 	}
-}
-
-func Update(n *Node) *Node {
-	n.height.Add(MaxBigInt(height(n.treeLeft), height(n.treeRight)), NewFelt(1))
-	return n
 }
 
 func (n *Node) IsBST() bool {
@@ -508,5 +518,32 @@ func (n *Node) IsBalanced() bool {
 }
 
 func IsLeftHeavy(L, R *Node) bool {
-	return height(L).Cmp(NewFelt(0).Add(height(R), NewFelt(1))) > 0
+	c := &Counters{}
+	return height(L, c).Cmp(NewFelt(0).Add(height(R, c), NewFelt(1))) > 0
+}
+
+func (n *Node) resetFlags() {
+	node_items := n.WalkInOrder(func(n *Node) interface{} { return n })
+	for i := range node_items {
+		node := node_items[i].(*Node)
+		node.exposed = false
+		node.heightTaken = false
+	}
+}
+
+func (n *Node) Size() int {
+	if n == nil {
+		return 0
+	}
+	return len(n.WalkKeysInOrder())
+}
+
+func (n *Node) CountNewHashes() (hashCount uint) {
+	node_items := n.WalkInOrder(func(n *Node) interface{} { return n })
+	for i := range node_items {
+		if node_items[i].(*Node).exposed {
+			hashCount++
+		}
+	}
+	return hashCount
 }

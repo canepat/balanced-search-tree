@@ -60,7 +60,7 @@ func TestBulkOperations(t *testing.T) {
 
 	d8 := NewDict(NewFelt(11), NewFelt(0), nil, nil, nil, nil)
 
-	u3 := Union(t7, d8)
+	u3 := Union(t7, d8, &Counters{})
 	assertAvl(t, u3, 2, []uint64{15, 11, 18})
 	u3.GraphAndPicture("u3")
 }

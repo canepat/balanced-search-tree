@@ -118,6 +118,14 @@ func main() {
 			os.Exit(1)
 		}
 	}
-	newState := cairo.Union(state, stateChanges)
+	stats := &cairo.Counters{}
+	newState := cairo.Union(state, stateChanges, stats)
 	newState.GraphAndPicture("new_" + outputNameFromInputName(stateFileName))
+
+	fmt.Printf("Number of current state nodes: %d\n", state.Size())
+	fmt.Printf("Number of state change nodes: %d\n", stateChanges.Size())
+	fmt.Printf("Number of next state nodes: %d\n", newState.Size())
+	fmt.Printf("Number of exposed nodes for next state: %d\n", stats.ExposedCount)
+	fmt.Printf("Number of height taken for next state: %d\n", stats.HeightCount)
+	fmt.Printf("Number of new hashes for next state: %d\n", newState.CountNewHashes())
 }

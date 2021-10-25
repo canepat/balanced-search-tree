@@ -127,6 +127,15 @@ func (d *Dict) WalkNodesInOrder() []*Dict {
 	return dictionaries
 }
 
+func (d *Dict) WalkKeysInOrder() []uint64 {
+	key_items := d.WalkInOrder(func(d *Dict) interface{} { return d.key })
+	keys := make([]uint64, len(key_items))
+	for i := range key_items {
+		keys[i] = key_items[i].(*Felt).Uint64()
+	}
+	return keys
+}
+
 func StateChangesFromCsv(stateChanges *bufio.Scanner) (d *Dict, err error) {
 	dictByPointer := make(map[int64]*Dict)
 	for stateChanges.Scan() {
@@ -320,4 +329,11 @@ func (d *Dict) GraphAndPicture(filename string) error {
 		return err
 	}
 	return nil
+}
+
+func (d *Dict) Size() int {
+	if d == nil {
+		return 0
+	}
+	return len(d.WalkKeysInOrder())
 }

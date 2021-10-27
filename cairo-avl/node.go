@@ -336,7 +336,7 @@ func MappedStateFromCsv(state *bufio.Scanner) (t *Node, err error) {
 	return t, nil
 }
 
-func StateFromBinary(statesReader *bufio.Reader) (t *Node, err error) {
+func StateFromBinary(statesReader *bufio.Reader, keySize int, nested bool) (t *Node, err error) {
 	buffer := make([]byte, BufferSize)
 	for {
 		bytes_read, err := statesReader.Read(buffer)
@@ -344,21 +344,29 @@ func StateFromBinary(statesReader *bufio.Reader) (t *Node, err error) {
 		if err == io.EOF {
 			break
 		}
-		key_bytes_count := 4 * (bytes_read / 4)
+		key_bytes_count := keySize * (bytes_read / keySize)
+		duplicated_keys := 0
 		fmt.Println("BINARY state key_bytes_count: ", key_bytes_count)
-		for i := 0; i < key_bytes_count; i += 4 {
-			key := binary.BigEndian.Uint32(buffer[i:i+4])
+		for i := 0; i < key_bytes_count; i += keySize {
+			key := binary.BigEndian.Uint32(buffer[i:i+keySize])
 			fmt.Println("BINARY state key: ", key)
+			if t.Search(NewFelt(int64(key))) != nil {
+				duplicated_keys++
+				continue
+			}
 			var nestedTree *Node
-			if i % 10 == 0 {
+			if nested && i % 10 == 0 {
 				fmt.Printf("Inserting nested key: %d\n", i)
 				nestedTree = Insert(/*T=*/nil, NewFelt(int64(i)), NewFelt(0), /*N=*/nil)
 				fmt.Printf("Inserted nested tree: %+v\n", nestedTree)
 			}
 			t = Insert(t, NewFelt(int64(key)), NewFelt(0), nestedTree)
 		}
+		fmt.Printf("BINARY state changes duplicated_keys: %d\n", duplicated_keys)
 	}
-	t = Insert(/*T=*/nil, NewFelt(int64(0)), /*v=*/nil, Insert(/*T=*/nil, NewFelt(int64(0)), /*v=*/nil, t))
+	if nested {
+		t = Insert(/*T=*/nil, NewFelt(int64(0)), /*v=*/nil, Insert(/*T=*/nil, NewFelt(int64(0)), /*v=*/nil, t))
+	}
 	t.resetFlags()
 	UpdatePath(t, "M")
 	fmt.Printf("t p=%p %+v\n", t, t)

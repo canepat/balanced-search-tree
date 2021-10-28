@@ -56,13 +56,13 @@ func TestBulkOperations(t *testing.T) {
 		NewNode(NewFelt(15), NewFelt(0), nil, nil, nil), nil, nil,
 	)
 	assertAvl(t, t7, 2, []uint64{18, 15})
-	t7.GraphAndPicture("t7")
+	t7.GraphAndPicture("t7", /*debug=*/false)
 
 	d8 := NewDict(NewFelt(11), NewFelt(0), nil, nil, nil, nil)
 
 	u3 := Union(t7, d8, &Counters{})
 	assertAvl(t, u3, 2, []uint64{15, 11, 18})
-	u3.GraphAndPicture("u3")
+	u3.GraphAndPicture("u3", /*debug=*/false)
 }
 
 func TestStateTree(t *testing.T) {

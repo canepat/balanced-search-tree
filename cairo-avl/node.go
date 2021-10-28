@@ -5,12 +5,13 @@ import (
 	"encoding/binary"
 	"fmt"
 	"io"
-	"log"
 	"os"
 	"os/exec"
 	"sort"
 	"strconv"
 	"strings"
+
+	log "github.com/sirupsen/logrus"
 )
 
 type Node struct {
@@ -32,6 +33,15 @@ func NewNode(k, v *Felt, T_L, T_R, T_N *Node) *Node {
 	n.height.Add(MaxBigInt(height(n.treeLeft, c), height(n.treeRight, c)), NewFelt(1))
 	UpdatePath(&n, "M")
 	return &n
+}
+
+func (n *Node) String() string {
+	if n == nil {
+		return "<nil>"
+	}
+	return fmt.Sprintf("path=%s k=%d v=%d h=%d L=%p R=%p, N=%p exposed=%t heightTaken=%t",
+		n.path, n.key, n.value, n.height, n.treeLeft, n.treeRight, n.treeNested, n.exposed, n.heightTaken,
+	)
 }
 
 func makeNode(k, v, h *Felt, T_L, T_R, T_N *Node) *Node {
@@ -143,11 +153,11 @@ func StateFromCsv(state *bufio.Scanner) (t *Node, err error) {
 	compositeKeys := make([][]int64, 0)
 	for state.Scan() {
 		line := state.Text()
-		fmt.Printf("state line: %s [%x]\n", line, line)
+		log.Tracef("CSV state line: %s [%x]\n", line, line)
 
 		tokens := strings.Split(line, ",")
 		if len(tokens) != 5 {
-			log.Fatal("state invalid line: ", line)
+			log.Fatal("CSV state invalid line: ", line)
 		}
 		compositeKeyItems := make([]int64, 0)
 		for _, token := range tokens {
@@ -178,30 +188,30 @@ func StateFromCsv(state *bufio.Scanner) (t *Node, err error) {
 		return nil, err
 	}
 	for _, ck := range compositeKeys {
-		fmt.Printf("%v\n", ck)
+		log.Tracef("%v\n", ck)
 	}
 	sort.SliceStable(compositeKeys, func(i, j int) bool {
 		return compare(compositeKeys[i], compositeKeys[j]) < 0
 	})
-	fmt.Printf("Ordered composite keys:\n")
+	log.Tracef("Ordered composite keys:\n")
 	for _, ck := range compositeKeys {
-		fmt.Printf("%v\n", ck)
+		log.Tracef("%v\n", ck)
 	}
-	fmt.Printf("Building tree:\n")
+	log.Tracef("Building tree:\n")
 	treeByLevel := make(map[int]map[int64]*Node)
 	for _, item := range compositeKeys {
-		fmt.Printf("item: %v\n", item)
+		log.Tracef("item: %v\n", item)
 		numKeys := len(item) - 1
 		ckItem := item[:numKeys]
-		fmt.Printf("numKeys: %d\n", numKeys)
+		log.Tracef("numKeys: %d\n", numKeys)
 		for nesting := numKeys-1; nesting >= 0; nesting-- {
-			fmt.Printf("nesting=%d\n", nesting)
+			log.Tracef("nesting=%d\n", nesting)
 			key := ckItem[nesting]
-			fmt.Printf("key=%d\n", key)
+			log.Tracef("key=%d\n", key)
 
 			var v *Felt
 			if nesting == numKeys-1 {
-				fmt.Printf("value=%d\n", item[numKeys])
+				log.Tracef("value=%d\n", item[numKeys])
 				v = NewFelt(item[numKeys])
 			}
 
@@ -215,7 +225,7 @@ func StateFromCsv(state *bufio.Scanner) (t *Node, err error) {
 				}
 				containerKey := ckItem[nesting-1]
 				container := treeByLevel[nesting-1][containerKey]
-				fmt.Printf("containerKey=%d container=%p %+v\n", containerKey, container, container)
+				log.Tracef("containerKey=%d container=%p %+v\n", containerKey, container, container)
 
 				if container == nil {
 					container = Insert(nil, NewFelt(containerKey), nil, nil) // TODO: try treeByLevel[nesting][key]
@@ -225,22 +235,21 @@ func StateFromCsv(state *bufio.Scanner) (t *Node, err error) {
 					}
 				}
 				tree := container.treeNested
-				fmt.Printf("tree: p=%p %+v\n", tree, tree)
+				log.Tracef("tree: p=%p %+v\n", tree, tree)
 				k := NewFelt(key)
 				if n := tree.Search(k); n != nil {
 					continue
 				}
 				newTree := Insert(tree, k, v, /*N=*/nil)
-				fmt.Printf("newTree: p=%p %+v\n", newTree, newTree)
+				log.Tracef("newTree: p=%p %+v\n", newTree, newTree)
 				newNode := newTree.Search(k) // TODO: Insert must return inserted node
 				if treeByLevel[nesting][key] != nil {
 					newNode.treeNested = treeByLevel[nesting][key].treeNested
 				}
 				treeByLevel[nesting][key] = newNode
 				container.treeNested = newTree
-				fmt.Printf("newNode=%p %+v\n", newNode, newNode)
 				UpdatePath(container, container.path)
-				fmt.Printf("newNode.path=%s newNode.nesting=%d\n", newNode.path, newNode.nesting())
+				log.Debugf("newNode=%p %+v nesting=%d\n", newNode, newNode, newNode.nesting())
 			} else {
 				root := treeByLevel[nesting][key]
 				if root == nil {
@@ -253,86 +262,7 @@ func StateFromCsv(state *bufio.Scanner) (t *Node, err error) {
 	}
 	t = treeByLevel[0][0]
 	t.resetFlags()
-	fmt.Printf("treeByLevel[0][0]: p=%p %+v\n", t, t)
-	return t, nil
-}
-
-func MappedStateFromCsv(state *bufio.Scanner) (t *Node, err error) {
-	nodeByPointer := make(map[int64]*Node)
-	for state.Scan() {
-		line := state.Text()
-		fmt.Println("mapped state line: ", line)
-		tokens := strings.Split(line, ",")
-		if len(tokens) != 11 {
-			log.Fatal("mapped state invalid line: ", line)
-		}
-		p, err := strconv.ParseInt(tokens[0], 10, 64)
-		if err != nil {
-			return nil, err
-		}
-		k, err := strconv.ParseInt(tokens[2], 10, 64)
-		if err != nil {
-			return nil, err
-		}
-		value := tokens[4]
-		var v *Felt
-		if value == "" {
-			v = nil
-		} else {
-			int_value, err := strconv.ParseInt(value, 10, 64)
-			if err != nil {
-				return nil, err
-			}
-			v = NewFelt(int_value)
-		}
-		if err != nil {
-			return nil, err
-		}
-		var T_L *Node
-		leftTreeType := tokens[5]
-		leftItem := tokens[6]
-		if leftTreeType == "HASH" && strings.HasPrefix(leftItem, "hash") {
-			T_L = nil
-		} else {
-			left, err := strconv.ParseInt(leftItem, 10, 64)
-			if err != nil {
-				return nil, err
-			}
-			T_L = nodeByPointer[left]
-		}
-		var T_R *Node
-		rightTreeType := tokens[7]
-		rightItem := tokens[8]
-		if rightTreeType == "HASH" && strings.HasPrefix(rightItem, "hash") {
-			T_R = nil
-		} else {
-			right, err := strconv.ParseInt(rightItem, 10, 64)
-			if err != nil {
-				return nil, err
-			}
-			T_R = nodeByPointer[right]
-		}
-		var T_N *Node
-		nestedTreeType := tokens[9]
-		nestedItem := tokens[10]
-		if nestedTreeType == "HASH" && strings.HasPrefix(nestedItem, "hash") {
-			T_N = nil
-		} else {
-			nested, err := strconv.ParseInt(nestedItem, 10, 64)
-			if err != nil {
-				return nil, err
-			}
-			T_N = nodeByPointer[nested]
-		}
-		fmt.Println("mapped state: p: ", p, " k: ", k, " v: ", v, " left: ", leftItem, " rightItem: ", rightItem, " nestedItem: ", nestedItem)
-		nodeByPointer[p] = NewNode(NewFelt(k), v, T_L, T_R, T_N)
-		fmt.Println("mapped state: p: ", p, " k: ", k, " v: ", v, " T_L: ", T_L, " T_R: ", T_R, " T_N: ", T_N, " nesting: ", nodeByPointer[p].nesting())
-		fmt.Println("mapped state: nodeByPointer[p]: ", nodeByPointer[p])
-		t = nodeByPointer[p]
-	}
-	if err := state.Err(); err != nil {
-		return nil, err
-	}
+	log.Tracef("t p=%p %+v\n", t, t)
 	return t, nil
 }
 
@@ -340,40 +270,40 @@ func StateFromBinary(statesReader *bufio.Reader, keySize int, nested bool) (t *N
 	buffer := make([]byte, BufferSize)
 	for {
 		bytes_read, err := statesReader.Read(buffer)
-		fmt.Println("BINARY state bytes read: ", bytes_read, " err: ", err)
+		log.Debugf("BINARY state bytes read: %d err: %v\n", bytes_read, err)
 		if err == io.EOF {
 			break
 		}
 		key_bytes_count := keySize * (bytes_read / keySize)
 		duplicated_keys := 0
-		fmt.Println("BINARY state key_bytes_count: ", key_bytes_count)
+		log.Debugf("BINARY state key_bytes_count: %d\n", key_bytes_count)
 		for i := 0; i < key_bytes_count; i += keySize {
 			key := binary.BigEndian.Uint32(buffer[i:i+keySize])
-			fmt.Println("BINARY state key: ", key)
+			log.Debugf("BINARY state key: %d\n", key)
 			if t.Search(NewFelt(int64(key))) != nil {
 				duplicated_keys++
 				continue
 			}
 			var nestedTree *Node
 			if nested && i % 10 == 0 {
-				fmt.Printf("Inserting nested key: %d\n", i)
+				log.Debugf("Inserting nested key: %d\n", i)
 				nestedTree = Insert(/*T=*/nil, NewFelt(int64(i)), NewFelt(0), /*N=*/nil)
-				fmt.Printf("Inserted nested tree: %+v\n", nestedTree)
+				log.Debugf("Inserted nested tree: %+v\n", nestedTree)
 			}
 			t = Insert(t, NewFelt(int64(key)), NewFelt(0), nestedTree)
 		}
-		fmt.Printf("BINARY state changes duplicated_keys: %d\n", duplicated_keys)
+		log.Debugf("BINARY state duplicated_keys: %d\n", duplicated_keys)
 	}
 	if nested {
 		t = Insert(/*T=*/nil, NewFelt(int64(0)), /*v=*/nil, Insert(/*T=*/nil, NewFelt(int64(0)), /*v=*/nil, t))
 	}
 	t.resetFlags()
 	UpdatePath(t, "M")
-	fmt.Printf("t p=%p %+v\n", t, t)
+	log.Tracef("t p=%p %+v\n", t, t)
 	return t, nil
 }
 
-func (n *Node) Graph(filename string) {
+func (n *Node) Graph(filename string, debug bool) {
 	colors := []string{"#FDF3D0", "#DCE8FA", "#D9E7D6", "#F1CFCD", "#F5F5F5", "#E1D5E7", "#FFE6CC", "white"}
 	f, err := os.OpenFile(filename + ".dot", os.O_RDWR | os.O_CREATE, 0755)
 	if err != nil {
@@ -388,7 +318,7 @@ func (n *Node) Graph(filename string) {
 		log.Fatal(err)
 	}
 	for _, n := range n.WalkNodesInOrder() {
-		fmt.Printf("p=%p %+v k=%d nesting=%d\n", n, n, n.key, n.nesting())
+		log.Tracef("p=%p %+v k=%d nesting=%d\n", n, n, n.key, n.nesting())
 		left, right := "", ""
 		if n.treeLeft != nil {
 			left = "<L>L"
@@ -405,8 +335,13 @@ func (n *Node) Graph(filename string) {
 		} else {
 			down = n.value.String()
 		}
-		str := fmt.Sprintf("k=%d [%t]", n.key, n.exposed)
-		s := fmt.Sprintln(n.path, " [label=\"", left, "|{<C>", str/*n.key*/, "|", down, "}|", right, "\" style=filled fillcolor=\"", colors[n.nesting()], "\"];")
+		var nodeId string
+		if debug {
+			nodeId = fmt.Sprintf("k=%d [%t]", n.key, n.exposed)
+		} else {
+			nodeId = n.key.String()
+		}
+		s := fmt.Sprintln(n.path, " [label=\"", left, "|{<C>", nodeId, "|", down, "}|", right, "\" style=filled fillcolor=\"", colors[n.nesting()], "\"];")
 		if _, err := f.WriteString(s); err != nil {
 			log.Fatal(err)
 		}
@@ -433,13 +368,13 @@ func (n *Node) Graph(filename string) {
 	}
 }
 
-func (n *Node) GraphAndPicture(filename string) error {
+func (n *Node) GraphAndPicture(filename string, debug bool) error {
 	graphDir := "testdata/graph/"
 	_ = os.MkdirAll(graphDir, os.ModePerm)
 	filepath := graphDir + filename
 	_ = os.Remove(filepath + ".dot")
 	_ = os.Remove(filepath + ".png")
-	n.Graph(filepath)
+	n.Graph(filepath, debug)
 	dotExecutable, _ := exec.LookPath("dot")
 	cmdDot := &exec.Cmd{
 		Path: dotExecutable,

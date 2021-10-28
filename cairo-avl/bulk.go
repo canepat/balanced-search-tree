@@ -1,8 +1,9 @@
 package cairo_avl
 
 import (
-	"fmt"
 	"math/big"
+
+	log "github.com/sirupsen/logrus"
 )
 
 type Counters struct {
@@ -98,23 +99,23 @@ func joinRight(k, v *Felt, T_L, T_R, T_N *Node, c *Counters) (h *Felt, T *Node) 
 func join(k, v *Felt, D_U, D_D *Dict, T_L, T_R, T_N *Node, c *Counters) (T *Node) {
 	h_L := height(T_L, c)
 	h_R := height(T_R, c)
-	fmt.Println("join: h_L=", h_L, " h_R=", h_R)
-	fmt.Println("join: T_N=", T_N.WalkKeysInOrder(), "D_D=", dictToNode(D_D).WalkKeysInOrder(), "D_U=", dictToNode(D_U).WalkKeysInOrder())
+	log.Traceln("join: h_L=", h_L, " h_R=", h_R)
+	log.Traceln("join: T_N=", T_N.WalkKeysInOrder(), "D_D=", dictToNode(D_D).WalkKeysInOrder(), "D_U=", dictToNode(D_U).WalkKeysInOrder())
 	N := Union(Difference(T_N, D_D, c), D_U, c)
-	fmt.Println("join: N=", N.WalkKeysInOrder())
+	log.Traceln("join: N=", N.WalkKeysInOrder())
 	if h_L.Cmp(new(Felt).Add(h_R, big.NewInt(1))) > 0 {
 		_, T = joinRight(k, v, T_L, T_R, N, c)
-		fmt.Println("join: T=", T)
+		log.Traceln("join: T=", T)
 		return T
 	} else if h_R.Cmp(new(Felt).Add(h_L, big.NewInt(1))) > 0 {
 		_, T = joinLeft(k, v, T_L, T_R, N, c)
-		fmt.Println("join: T=", T)
+		log.Traceln("join: T=", T)
 		return T
 	} else {
 		h := computeHeight(h_L, h_R)
-		fmt.Println("join: h=", h)
+		log.Traceln("join: h=", h)
 		T = makeNode(k, v, h, T_L, T_R, N)
-		fmt.Printf("join: T p=%p %+v k=%d\n", T, T, k.Uint64())
+		log.Tracef("join: T p=%p %+v k=%d\n", T, T, k.Uint64())
 		return T
 	}
 }
@@ -169,14 +170,14 @@ func Union(T0 *Node, D *Dict, c *Counters) (T1 *Node) {
 		return T0
 	} else {
 		k, v, D_L, D_R, D_U, D_D := exposeDict(D)
-		fmt.Println("Union k=", k, "D_U=", dictToNode(D_U).WalkKeysInOrder(), " D_D=", dictToNode(D_D).WalkKeysInOrder())
+		log.Traceln("Union k=", k, "D_U=", dictToNode(D_U).WalkKeysInOrder(), " D_D=", dictToNode(D_D).WalkKeysInOrder())
 		T_L, T_R, T_N := split(T0, k, c)
-		fmt.Println("Union T_L=", T_L.WalkKeysInOrder(), " T_R=", T_R.WalkKeysInOrder())
-		fmt.Println("Union D_L=", dictToNode(D_L).WalkKeysInOrder(), " D_R=", dictToNode(D_R).WalkKeysInOrder())
+		log.Traceln("Union T_L=", T_L.WalkKeysInOrder(), " T_R=", T_R.WalkKeysInOrder())
+		log.Traceln("Union D_L=", dictToNode(D_L).WalkKeysInOrder(), " D_R=", dictToNode(D_R).WalkKeysInOrder())
 		L := Union(T_L, D_L, c)
-		fmt.Println("Union L=", L.WalkKeysInOrder())
+		log.Traceln("Union L=", L.WalkKeysInOrder())
 		R := Union(T_R, D_R, c)
-		fmt.Println("Union R=", R.WalkKeysInOrder(), "D_U=", dictToNode(D_U).WalkKeysInOrder(), " D_D=", dictToNode(D_D).WalkKeysInOrder())
+		log.Traceln("Union R=", R.WalkKeysInOrder(), "D_U=", dictToNode(D_U).WalkKeysInOrder(), " D_D=", dictToNode(D_D).WalkKeysInOrder())
 		return join(k, v, D_U, D_D, L, R, T_N, c)
 	}
 }

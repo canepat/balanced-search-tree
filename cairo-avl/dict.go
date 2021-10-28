@@ -5,12 +5,13 @@ import (
 	"encoding/binary"
 	"fmt"
 	"io"
-	"log"
 	"math/rand"
 	"os"
 	"os/exec"
 	"strconv"
 	"strings"
+
+	log "github.com/sirupsen/logrus"
 )
 
 type Dict struct {
@@ -140,7 +141,7 @@ func StateChangesFromCsv(stateChanges *bufio.Scanner) (d *Dict, err error) {
 	dictByPointer := make(map[int64]*Dict)
 	for stateChanges.Scan() {
 		line := stateChanges.Text()
-		fmt.Println("stateChanges line: ", line)
+		log.Traceln("stateChanges line: ", line)
 		tokens := strings.Split(line, ",")
 		if len(tokens) != 11 {
 			log.Fatal("stateChanges invalid line: ", line)
@@ -182,16 +183,16 @@ func StateChangesFromCsv(stateChanges *bufio.Scanner) (d *Dict, err error) {
 			return nil, err
 		}
 		D_U := dictByPointer[nestedUpsert]
-		fmt.Println("previous D_U: ", D_U)
+		log.Traceln("previous D_U: ", D_U)
 		nestedDelete, err := strconv.ParseInt(tokens[10], 10, 64)
 		if err != nil {
 			return nil, err
 		}
 		D_D := dictByPointer[nestedDelete]
-		fmt.Println("previous D_D: ", D_D)
-		fmt.Println("p: ", p, " k: ", k, " v: ", v, " left: ", left, " right: ", right, " nestedUpsert: ", nestedUpsert, " nestedDelete: ", nestedDelete)
+		log.Traceln("previous D_D: ", D_D)
+		log.Traceln("p: ", p, " k: ", k, " v: ", v, " left: ", left, " right: ", right, " nestedUpsert: ", nestedUpsert, " nestedDelete: ", nestedDelete)
 		dictByPointer[p] = NewDict(NewFelt(k), v, D_L, D_R, D_U, D_D)
-		fmt.Println("dictByPointer[p]: ", dictByPointer[p])
+		log.Traceln("dictByPointer[p]: ", dictByPointer[p])
 		d = dictByPointer[p]
 	}
 	if err := stateChanges.Err(); err != nil {
@@ -205,34 +206,33 @@ func StateChangesFromBinary(statesReader *bufio.Reader, keySize int, nested bool
 	var t *Node
 	for {
 		bytes_read, err := statesReader.Read(buffer)
-		fmt.Println("BINARY state changes bytes read: ", bytes_read, " err: ", err)
+		log.Debugf("BINARY state changes bytes read: %d err: %v\n", bytes_read, err)
 		if err == io.EOF {
 			break
 		}
 		key_bytes_count := keySize * (bytes_read / keySize)
 		duplicated_keys := 0
-		fmt.Println("BINARY state changes key_bytes_count: ", key_bytes_count)
+		log.Debugf("BINARY state changes key_bytes_count: %d\n", key_bytes_count)
 		for i := 0; i < key_bytes_count; i += keySize {
 			key := binary.BigEndian.Uint32(buffer[i:i+keySize])
-			fmt.Println("BINARY state changes key: ", key)
+			log.Debugf("BINARY state changes key: %d\n", key)
 			if t.Search(NewFelt(int64(key))) != nil {
 				duplicated_keys++
 				continue
 			}
 			var nestedTree *Node
 			if nested && i % 10 == 0 {
-				fmt.Printf("Inserting nested key: %d\n", i)
+				log.Debugf("Inserting nested key: %d\n", i)
 				nestedTree = Insert(/*T=*/nil, NewFelt(int64(i)), NewFelt(0), /*N=*/nil)
-				fmt.Printf("Inserted nested tree: %+v\n", nestedTree)
+				log.Debugf("Inserted nested tree: %+v\n", nestedTree)
 			}
 			t = Insert(t, NewFelt(int64(key)), nil, nestedTree)
 		}
-		fmt.Printf("BINARY state changes duplicated_keys: %d\n", duplicated_keys)
+		log.Debugf("BINARY state changes duplicated_keys: %d\n", duplicated_keys)
 	}
 	if nested {
 		t = Insert(/*T=*/nil, NewFelt(int64(0)), /*v=*/nil, Insert(/*T=*/nil, NewFelt(int64(0)), /*v=*/nil, t))
 	}
-	t.GraphAndPicture("t")
 	var node2Dict func(*Node) *Dict
 	node2Dict = func(n *Node) *Dict {
 		if n != nil {
@@ -264,7 +264,7 @@ func (d *Dict) Graph(filename string) {
 		log.Fatal(err)
 	}
 	for _, d := range d.WalkNodesInOrder() {
-		fmt.Println("k: ", d.key, " v: ", d.value, " left: ", d.left, " right: ", d.right, " nestedUpsert: ", d.upserts, " nestedDelete: ", d.deletes)
+		log.Traceln("k: ", d.key, " v: ", d.value, " left: ", d.left, " right: ", d.right, " nestedUpsert: ", d.upserts, " nestedDelete: ", d.deletes)
 		var down string
 		if d.upserts != nil {
 			if d.deletes != nil {
@@ -287,7 +287,7 @@ func (d *Dict) Graph(filename string) {
 			right = "<R>R"
 		}
 		s := fmt.Sprintln(d.path, "[label=\"", left, "|{<C>", d.key, "|", down, "}|", right, "\" style=filled fillcolor=\"", colors[d.nesting()], "\"];")
-		fmt.Println(s)
+		log.Traceln(s)
 		if _, err := f.WriteString(s); err != nil {
 			log.Fatal(err)
 		}

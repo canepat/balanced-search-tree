@@ -1,0 +1,72 @@
+//go:build gofuzzbeta
+// +build gofuzzbeta
+
+package cairo_bptree
+
+import (
+	"testing"
+
+	log "github.com/sirupsen/logrus"
+	"github.com/stretchr/testify/assert"
+)
+
+func assertTwoThreeTree(t *testing.T, tree *Tree23, expectedKeysInOrder []Felt) {
+	assert.True(t, tree.IsTwoThree(), "2-3-tree properties do not hold for tree: %v", tree.WalkKeysPostOrder())
+	//assert.True(t, n.IsBalanced(), "AVL balance property failed for tree: %v", t.WalkKeysPostOrder())
+	//assert.Equal(t, h, HeightAsInt(n), "Wrong height %d for tree: %v", HeightAsInt(n), n.WalkKeysPostOrder())
+	assert.Equal(t, expectedKeysInOrder, tree.WalkKeysPostOrder(), "different in-order keys: %v", tree.WalkKeysPostOrder())
+}
+
+var t0, t1, t2, t3, t4, t5, tn *Tree23
+
+func init() {
+	log.SetLevel(log.TraceLevel)
+
+	t0 = NewTree23()
+	k1, v1 := Felt(1), Felt(1)
+	t1 = NewTree23().Upsert([]KeyValue{{&k1, &v1}})
+	k2, v2 := Felt(2), Felt(2)
+	t2 = NewTree23().Upsert([]KeyValue{{&k1, &v1}, {&k2, &v2}})
+	t2.GraphAndPicture("t2", false)
+	k3, v3 := Felt(3), Felt(3)
+	t3 = NewTree23().Upsert([]KeyValue{{&k1, &v1}, {&k2, &v2}, {&k3, &v3}})
+	t3.GraphAndPicture("t3", false)
+	k4, v4 := Felt(4), Felt(4)
+	t4 = NewTree23().Upsert([]KeyValue{{&k1, &v1}, {&k2, &v2}, {&k3, &v3}, {&k4, &v4}})
+	t4.GraphAndPicture("t4", false)
+	k5, v5 := Felt(5), Felt(5)
+	t5 = NewTree23().Upsert([]KeyValue{{&k1, &v1}, {&k2, &v2}, {&k3, &v3}, {&k4, &v4}, {&k5, &v5}})
+	t5.GraphAndPicture("t5", false)
+	dataCount := uint64(4)
+	data := make([]KeyValue, dataCount)
+	var i uint64
+	for i = 0; i < dataCount; i++ {
+		k := Felt(i*2)
+		v := Felt(i*2)
+		data[i] = KeyValue{&k, &v}
+	}
+	tn = NewTree23().Upsert(data)
+	tn.GraphAndPicture("tn1", false)
+	for i = 0; i < dataCount; i++ {
+		k := Felt(i*2+1)
+		v := Felt(i*2+1)
+		data[i] = KeyValue{&k, &v}
+	}
+	tn = tn.Upsert(data)
+	tn.GraphAndPicture("tn2", false)
+}
+
+func TestIs23Tree(t *testing.T) {
+	assertTwoThreeTree(t, t0, []Felt{})
+	assertTwoThreeTree(t, t1, []Felt{Felt(1)})
+	assertTwoThreeTree(t, t2, []Felt{Felt(1), Felt(2)})
+	//assertTwoThreeTree(t, t3, []Felt{Felt(1), Felt(2), Felt(3)})
+	//assertTwoThreeTree(t, t4, []Felt{Felt(1), Felt(2), Felt(3), Felt(4)})
+	assertTwoThreeTree(t, t5, []Felt{Felt(1), Felt(2), Felt(3), Felt(4), Felt(5)})
+}
+
+func TestUpsert(t *testing.T) {
+	//var tree *Tree23
+	//k1, v1 := Felt(1), Felt(1)
+	//tree.Upsert([]KeyValue{{&k1, &v1}})
+}

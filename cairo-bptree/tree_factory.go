@@ -32,8 +32,7 @@ func (factory *Tree23BinaryFactory) NewTree23(reader *bufio.Reader) *Tree23 {
 			key := binary.BigEndian.Uint64(buffer[i:i+factory.keySize])
 			log.Debugf("BINARY state key: %d\n", key)
 			value := key // Shortcut: value equal to key
-			kv := KeyValue{&key, &value}
-			kvPairs = append(kvPairs, kv)
+			kvPairs = append(kvPairs, KeyValue{key, value})
 		}
 		log.Tracef("BINARY state duplicated_keys: %d\n", duplicated_keys)
 	}

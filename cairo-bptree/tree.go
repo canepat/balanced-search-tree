@@ -347,15 +347,6 @@ func (n *Node23) upsertInternal(kvItems []KeyValue) ([]*Node23) {
 	log.Tracef("upsertInternal: n=%s keyCount=%d\n", n, n.keyCount())
 
 	itemSubsets := n.splitItems(kvItems)
-	log.Tracef("upsertInternal: n=%s itemSubsets=%v\n", n, itemSubsets)
-	/*for j, child := range n.children {
-		log.Tracef("upsertInternal: j=%d child=%s itemSubsets[i]=%v\n", j, child, itemSubsets[j])
-	}
-	for j, child := range n.children {
-		log.Tracef("upsertInternal: j=%d child=%s itemSubsets[i]=%v\n", j, child, itemSubsets[j])
-		child.upsert(itemSubsets[j])
-		log.Tracef("upsertInternal: j=%d child=%s itemSubsets[i]=%v\n", j, child, itemSubsets[j])
-	}*/
 
 	promoted_nodes := make([]*Node23, 0)
 	for i, child := range n.children {
@@ -365,8 +356,7 @@ func (n *Node23) upsertInternal(kvItems []KeyValue) ([]*Node23) {
 		log.Tracef("upsertInternal: i=%d promoted_nodes=%v \n", i, promoted_nodes)
 	}
 	log.Tracef("upsertInternal: n=%s\n", n)
-	//n.children = append(n.children, promoted_nodes...)
-	n.appendNotPresentChildren(promoted_nodes)
+	n.children = promoted_nodes
 	log.Tracef("upsertInternal: n=%s\n", n)
 	nodes := make([]*Node23, 0)
 	if n.childrenCount() > 3 {
@@ -383,32 +373,10 @@ func (n *Node23) upsertInternal(kvItems []KeyValue) ([]*Node23) {
 	}
 }
 
-func (n *Node23) appendNotPresentChildren(newChildren []*Node23) {
-	for _, newChild := range newChildren {
-		for _, child := range n.children {
-			if child == newChild {
-				return
-			}
-		}
-		n.children = append(n.children, newChild)
-	}
-}
-
 func (n *Node23) splitItems(kvItems []KeyValue) [][]KeyValue {
 	ensure(!n.isLeaf, "splitItems: node is not internal")
 	ensure(len(n.keys) > 0, "splitItems: internal node has no keys")
 	log.Tracef("splitItems: keys=%v-%v kvItems=%v\n", pointer2pointee(n.keys), n.keys, kvItems)
-
-	/*chunkSize := len(kvItems) / n.childrenCount()
-	dataSlices := make([][]KeyValue, 0)
-	for i := 0; i < len(kvItems); i += chunkSize {
-		end := i + chunkSize
-		if end > len(kvItems) {
-			end = len(kvItems)
-		}
-		dataSlices = append(dataSlices, kvItems[i:end])
-	}*/
-
 	itemSubsets := make([][]KeyValue, 0)
 	for i, key := range n.keys {
 		splitIndex := sort.Search(len(kvItems), func(i int) bool { return kvItems[i].key > *key })
@@ -422,7 +390,6 @@ func (n *Node23) splitItems(kvItems []KeyValue) [][]KeyValue {
 		}
 	}
 	return itemSubsets
-	//return dataSlices
 }
 
 func (n *Node23) addOrReplace(kvItems []KeyValue) {

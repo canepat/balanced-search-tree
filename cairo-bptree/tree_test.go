@@ -49,6 +49,12 @@ func init() {
 	}
 	tn = tn.Upsert(data)
 	tn.GraphAndPicture("tn2", false)
+	data = []KeyValue{{100, 100}, {101, 101}, {200, 200}, {201, 201}, {202, 202}}
+	tn = tn.Upsert(data)
+	tn.GraphAndPicture("tn3", false)
+	data = []KeyValue{{10, 10}, {150, 150}, {250, 250}, {251, 251}, {252, 252}}
+	tn = tn.Upsert(data)
+	tn.GraphAndPicture("tn4", false)
 }
 
 func TestIs23Tree(t *testing.T) {

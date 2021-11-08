@@ -2,8 +2,6 @@ package cairo_bptree
 
 import (
 	"fmt"
-	"os"
-	"os/exec"
 	"sort"
 	"unsafe"
 
@@ -26,11 +24,13 @@ func (t *Tree23) IsTwoThree() bool {
 }
 
 func (t *Tree23) Graph(filename string, debug bool) {
-	t.root.graph(filename, debug)
+	graph := NewGraph(t.root)
+	graph.saveDot(filename, debug)
 }
 
 func (t *Tree23) GraphAndPicture(filename string, debug bool) error {
-	return t.root.graphAndPicture(filename, debug)
+	graph := NewGraph(t.root)
+	return graph.saveDotAndPicture(filename, debug)
 }
 
 type Walker func(*Node23) interface{}
@@ -51,7 +51,7 @@ func (t *Tree23) WalkKeysPostOrder() ([]Felt) {
 		}
 		return nil
 	})
-	keys := pointer2pointee(key_pointers)
+	keys := ptr2pte(key_pointers)
 	log.Tracef("WalkKeysInOrder: keys=%v\n", keys)
 	return keys
 }
@@ -112,7 +112,7 @@ type KeyValue struct {
 }
 
 func (n *Node23) String() string {
-	s := fmt.Sprintf("{%p isLeaf=%t keys=%v-%v children=[", n, n.isLeaf, pointer2pointee(n.keys), n.keys)
+	s := fmt.Sprintf("{%p isLeaf=%t keys=%v-%v children=[", n, n.isLeaf, ptr2pte(n.keys), n.keys)
 	for i, child := range n.children {
 		s += fmt.Sprintf("%p", child)
 		if i != len(n.children)-1 {
@@ -121,105 +121,6 @@ func (n *Node23) String() string {
 	}
 	s += "]}"
 	return s
-}
-
-func (node *Node23) graph(filename string, debug bool) {
-	colors := []string{"#FDF3D0", "#DCE8FA", "#D9E7D6", "#F1CFCD", "#F5F5F5", "#E1D5E7", "#FFE6CC", "white"}
-	f, err := os.OpenFile(filename + ".dot", os.O_RDWR | os.O_CREATE, 0755)
-	if err != nil {
-		log.Fatal(err)
-	}
-	defer func () {
-		if err := f.Close(); err != nil {
-			log.Fatal(err)
-		}
-	}()
-	if node == nil {
-		if _, err := f.WriteString("strict digraph {\nnode [shape=record];}\n"); err != nil {
-			log.Fatal(err)
-		}
-		return
-	}
-	if _, err := f.WriteString("strict digraph {\nnode [shape=record];\n"); err != nil {
-		log.Fatal(err)
-	}
-	for _, n := range node.walkNodesPostOrder() {
-		log.Tracef("graph: %+v nesting=%d\n", n, 0)
-		left, down, right := "", "", ""
-		switch n.childrenCount() {
-		case 1:
-			left = "<L>L"
-		case 2:
-			left = "<L>L"
-			right = "<R>R"
-		case 3:
-			left = "<L>L"
-			down = "<D>D"
-			right = "<R>R"
-		}
-		var nodeId string
-		if debug {
-			nodeId = fmt.Sprintf("k=%v-%v", pointer2pointee(n.keys), n.keys)
-		} else {
-			nodeId = fmt.Sprintf("k=%v", pointer2pointee(n.keys))
-		}
-		s := fmt.Sprintln(/*n.path*/n.rawPointer(), " [label=\"", left, "|{<C>", nodeId, "|", down, "}|", right, "\" style=filled fillcolor=\"", colors[0], "\"];")
-		if _, err := f.WriteString(s); err != nil {
-			log.Fatal(err)
-		}
-	}
-	for _, n := range node.walkNodesPostOrder() {
-		var treeLeft, treeDown, treeRight *Node23
-		switch n.childrenCount() {
-		case 1:
-			treeLeft = n.children[0]
-		case 2:
-			treeLeft = n.children[0]
-			treeRight = n.children[1]
-		case 3:
-			treeLeft = n.children[0]
-			treeDown = n.children[1]
-			treeRight = n.children[2]
-		}
-		if treeLeft != nil {
-			if _, err := f.WriteString(fmt.Sprintln(n.rawPointer(), ":L -> ", treeLeft.rawPointer(), ":C;")); err != nil {
-				log.Fatal(err)
-			}
-		}
-		if treeDown != nil {
-			if _, err := f.WriteString(fmt.Sprintln(n.rawPointer(), ":D -> ", treeDown.rawPointer(), ":C;")); err != nil {
-				log.Fatal(err)
-			}
-		}
-		if treeRight != nil {
-			if _, err := f.WriteString(fmt.Sprintln(n.rawPointer(), ":R -> ", treeRight.rawPointer(), ":C;")); err != nil {
-				log.Fatal(err)
-			}
-		}
-	}
-	if _, err := f.WriteString("}\n"); err != nil {
-		log.Fatal(err)
-	}
-}
-
-func (n *Node23) graphAndPicture(filename string, debug bool) error {
-	graphDir := "testdata/graph/"
-	_ = os.MkdirAll(graphDir, os.ModePerm)
-	filepath := graphDir + filename
-	_ = os.Remove(filepath + ".dot")
-	_ = os.Remove(filepath + ".png")
-	n.graph(filepath, debug)
-	dotExecutable, _ := exec.LookPath("dot")
-	cmdDot := &exec.Cmd{
-		Path: dotExecutable,
-		Args: []string{dotExecutable, "-Tpng", filepath + ".dot", "-o", filepath + ".png"},
-		Stdout: os.Stdout,
-		Stderr: os.Stderr,
-	}
-	if err := cmdDot.Run(); err != nil {
-		return err
-	}
-	return nil
 }
 
 func makeInternalNode(children []*Node23) (*Node23) {
@@ -320,7 +221,9 @@ func (n *Node23) upsert(kvItems []KeyValue) ([]*Node23) {
 func (n *Node23) upsertLeaf(kvItems []KeyValue) ([]*Node23) {
 	log.Tracef("upsertLeaf: n=%p kvItems=%v\n", n, kvItems)
 	ensure(n.isLeaf, "node is not leaf")
-	n.addOrReplace(kvItems)
+
+	n.addOrReplaceKeys(kvItems)
+
 	log.Tracef("upsertLeaf: keyCount=%d\n", n.keyCount())
 	if n.keyCount() > 3 {
 		nodes := make([]*Node23, 0)
@@ -348,6 +251,7 @@ func (n *Node23) upsertInternal(kvItems []KeyValue) ([]*Node23) {
 
 	itemSubsets := n.splitItems(kvItems)
 
+	log.Tracef("upsertInternal: n=%s itemSubsets=%v\n", n, itemSubsets)
 	promoted_nodes := make([]*Node23, 0)
 	for i, child := range n.children {
 		log.Tracef("upsertInternal: i=%d child=%s itemSubsets[i]=%v\n", i, child, itemSubsets[i])
@@ -356,7 +260,8 @@ func (n *Node23) upsertInternal(kvItems []KeyValue) ([]*Node23) {
 		log.Tracef("upsertInternal: i=%d promoted_nodes=%v \n", i, promoted_nodes)
 	}
 	log.Tracef("upsertInternal: n=%s\n", n)
-	n.children = promoted_nodes
+	//n.children = promoted_nodes
+	n = makeInternalNode(promoted_nodes)
 	log.Tracef("upsertInternal: n=%s\n", n)
 	nodes := make([]*Node23, 0)
 	if n.childrenCount() > 3 {
@@ -376,70 +281,44 @@ func (n *Node23) upsertInternal(kvItems []KeyValue) ([]*Node23) {
 func (n *Node23) splitItems(kvItems []KeyValue) [][]KeyValue {
 	ensure(!n.isLeaf, "splitItems: node is not internal")
 	ensure(len(n.keys) > 0, "splitItems: internal node has no keys")
-	log.Tracef("splitItems: keys=%v-%v kvItems=%v\n", pointer2pointee(n.keys), n.keys, kvItems)
+	log.Tracef("splitItems: keys=%v-%v kvItems=%v\n", ptr2pte(n.keys), n.keys, kvItems)
 	itemSubsets := make([][]KeyValue, 0)
 	for i, key := range n.keys {
 		splitIndex := sort.Search(len(kvItems), func(i int) bool { return kvItems[i].key > *key })
 		log.Tracef("splitItems: key=%d-(%p) splitIndex=%d\n", *key, key, splitIndex)
-		if splitIndex < len(kvItems) {
-			itemSubsets = append(itemSubsets, kvItems[:splitIndex])
-			kvItems = kvItems[splitIndex:]
-		}
+		itemSubsets = append(itemSubsets, kvItems[:splitIndex])
+		kvItems = kvItems[splitIndex:]
 		if i == len(n.keys)-1 {
 			itemSubsets = append(itemSubsets, kvItems)
 		}
 	}
+	ensure(len(itemSubsets) == len(n.children), "item subsets and children have different cardinality")
 	return itemSubsets
 }
 
-func (n *Node23) addOrReplace(kvItems []KeyValue) {
+func (n *Node23) addOrReplaceKeys(kvItems []KeyValue) {
 	ensure(n.isLeaf, "node is not leaf")
 	ensure(len(n.keys) > 0 && len(n.values) > 0, "node keys/values are not empty")
 	ensure(len(kvItems) > 0, "kvItems is not empty")
-	log.Debugf("addOrReplace: keys=%v-%v values=%v-%v kvItems=%v\n", pointer2pointee(n.keys), n.keys, pointer2pointee(n.values), n.values, kvItems)
-	ensure(n.keyRangeContains(kvItems), "upsert keys out of node range")
+	log.Debugf("addOrReplaceKeys: keys=%v-%v values=%v-%v kvItems=%v\n", ptr2pte(n.keys), n.keys, ptr2pte(n.values), n.values, kvItems)
 	
 	nextKey, nextValue := n.nextKey(), n.nextValue()
-	log.Debugf("addOrReplace: nextKey=%p values=%p\n", nextKey, nextValue)
+	log.Debugf("addOrReplaceKeys: nextKey=%p values=%p\n", nextKey, nextValue)
 	n.keys = n.keys[:len(n.keys)-1]
 	n.values = n.values[:len(n.values)-1]
-	log.Debugf("addOrReplace: keys=%v-%v values=%v-%v\n", pointer2pointee(n.keys), n.keys, pointer2pointee(n.values), n.values)
+	log.Debugf("addOrReplaceKeys: keys=%v-%v values=%v-%v\n", ptr2pte(n.keys), n.keys, ptr2pte(n.values), n.values)
 	for _, kvPair := range kvItems {
 		key, value := kvPair.key, kvPair.value
 		n.keys = append(n.keys, &key)
 		n.values = append(n.values, &value)
 	}
-	log.Debugf("addOrReplace: keys=%v-%v values=%v-%v\n", pointer2pointee(n.keys), n.keys, pointer2pointee(n.values), n.values)
+	log.Debugf("addOrReplaceKeys: keys=%v-%v values=%v-%v\n", ptr2pte(n.keys), n.keys, ptr2pte(n.values), n.values)
 	sort.Slice(n.keys, func(i, j int) bool { return *n.keys[i] < *n.keys[j] })
 	sort.Slice(n.values, func(i, j int) bool { return *n.values[i] < *n.values[j] })
 	n.keys = append(n.keys, nextKey)
 	n.values = append(n.values, nextValue)
-	log.Debugf("addOrReplace: keys=%v-%v values=%v-%v\n", pointer2pointee(n.keys), n.keys, pointer2pointee(n.values), n.values)
-	log.Debugf("addOrReplace: keys=%v-%v values=%v-%v\n", pointer2pointee(n.keys), n.keys, pointer2pointee(n.values), n.values)
-}
-
-func (n *Node23) keyRangeContains(kvItems []KeyValue) bool {
-	return n.isSentinelOrLowerThanKey(0, kvItems[0].key) && n.isSentinelOrGreaterThanKey(len(n.keys)-1, kvItems[len(kvItems)-1].key)
-}
-
-func (n *Node23) isSentinelOrGreaterThanKey(keyIndex int, otherKey Felt) bool {
-	return n.isSentinelKey(keyIndex) || n.isGreaterThanKey(keyIndex, otherKey)
-}
-
-func (n *Node23) isSentinelOrLowerThanKey(keyIndex int, otherKey Felt) bool {
-	return n.isSentinelKey(keyIndex) || n.isLowerThanKey(keyIndex, otherKey)
-}
-
-func (n *Node23) isSentinelKey(keyIndex int) bool {
-	return n.keys[keyIndex] == nil
-}
-
-func (n *Node23) isGreaterThanKey(i int, otherKey Felt) bool {
-	return *n.keys[i] > otherKey;
-}
-
-func (n *Node23) isLowerThanKey(i int, otherKey Felt) bool {
-	return *n.keys[i] < otherKey;
+	log.Debugf("addOrReplaceKeys: keys=%v-%v values=%v-%v\n", ptr2pte(n.keys), n.keys, ptr2pte(n.values), n.values)
+	log.Debugf("addOrReplaceKeys: keys=%v-%v values=%v-%v\n", ptr2pte(n.keys), n.keys, ptr2pte(n.values), n.values)
 }
 
 func (n *Node23) keyCount() int {
@@ -450,7 +329,7 @@ func (n *Node23) childrenCount() int {
 	return len(n.children)
 }
 
-func pointer2pointee(pointers []*Felt) ([]Felt) {
+func ptr2pte(pointers []*Felt) ([]Felt) {
 	pointees := make([]Felt, 0)
 	for _, ptr := range pointers {
 		if ptr != nil {

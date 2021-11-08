@@ -58,7 +58,8 @@ func (t *Tree23) WalkKeysPostOrder() ([]Felt) {
 
 func (t *Tree23) Upsert(kvItems []KeyValue) (*Tree23) {
 	log.Tracef("Upsert: t=%p root=%p kvItems=%v\n", t, t.root, kvItems)
-	nodes := t.root.upsert(kvItems)
+	nodes, _ := t.root.upsert(kvItems)
+	log.Tracef("Upsert: nodes=%v\n", nodes)
 	ensure(len(nodes) > 0, "nodes length is zero")
 	if len(nodes) == 1 {
 		t.root = nodes[0]
@@ -165,6 +166,19 @@ func (n *Node23) isTwoThree() bool {
 	}
 }
 
+func (n *Node23) keyCount() int {
+	return len(n.keys)
+}
+
+func (n *Node23) childrenCount() int {
+	return len(n.children)
+}
+
+func (n *Node23) firstKey() *Felt {
+	ensure(len(n.keys) > 0, "firstKey: node has no key")
+	return n.keys[0]
+}
+
 func (n *Node23) nextKey() *Felt {
 	ensure(len(n.keys) > 0, "nextKey: node has no key")
 	return n.keys[len(n.keys)-1]
@@ -201,10 +215,10 @@ func (n *Node23) walkNodesPostOrder() []*Node23 {
 	return nodes
 }
 
-func (n *Node23) upsert(kvItems []KeyValue) ([]*Node23) {
+func (n *Node23) upsert(kvItems []KeyValue) (promoted []*Node23, newFirstKey *Felt) {
 	log.Tracef("upsert: n=%p kvItems=%v\n", n, kvItems)
 	if len(kvItems) == 0 {
-		return []*Node23{n}
+		return []*Node23{n}, nil
 	}
 	// TODO: ensure(kvItems == sort.Sort(kvItems), "kvItems is not sorted by key")
 	if n == nil {
@@ -218,13 +232,19 @@ func (n *Node23) upsert(kvItems []KeyValue) ([]*Node23) {
 	}
 }
 
-func (n *Node23) upsertLeaf(kvItems []KeyValue) ([]*Node23) {
+func (n *Node23) upsertLeaf(kvItems []KeyValue) (promoted []*Node23, newFirstKey *Felt) {
 	log.Tracef("upsertLeaf: n=%p kvItems=%v\n", n, kvItems)
 	ensure(n.isLeaf, "node is not leaf")
 
+	currentFirstKey := n.firstKey()
 	n.addOrReplaceKeys(kvItems)
+	if n.firstKey() != currentFirstKey {
+		newFirstKey = n.firstKey()
+	} else {
+		newFirstKey = nil
+	}
 
-	log.Tracef("upsertLeaf: keyCount=%d\n", n.keyCount())
+	log.Tracef("upsertLeaf: keyCount=%d firstKey=%d\n", n.keyCount(), newFirstKey)
 	if n.keyCount() > 3 {
 		nodes := make([]*Node23, 0)
 		for n.keyCount() > 3 {
@@ -234,66 +254,54 @@ func (n *Node23) upsertLeaf(kvItems []KeyValue) ([]*Node23) {
 			n.keys, n.values = n.keys[2:], n.values[2:]
 			log.Tracef("upsertLeaf: updated n=%s\n", n)
 		}
-		// TODO: nodes = append(nodes, n) can we save one allocation?
 		newLeaf := makeLeafNode(n.keys[:], n.values[:])
 		log.Tracef("upsertLeaf: last newLeaf=%s\n", newLeaf)
 		nodes = append(nodes, newLeaf)
-		//nodes = append(nodes, n)
-		return nodes
+		return nodes, newFirstKey
 	} else {
-		return []*Node23{n}
+		return []*Node23{n}, newFirstKey
 	}
 }
 
-func (n *Node23) upsertInternal(kvItems []KeyValue) ([]*Node23) {
+func (n *Node23) upsertInternal(kvItems []KeyValue) (promoted []*Node23, newFirstKey *Felt) {
 	ensure(!n.isLeaf, "node is not internal")
 	log.Tracef("upsertInternal: n=%s keyCount=%d\n", n, n.keyCount())
 
 	itemSubsets := n.splitItems(kvItems)
 
 	log.Tracef("upsertInternal: n=%s itemSubsets=%v\n", n, itemSubsets)
-	promoted_nodes := make([]*Node23, 0)
+	innerPromotedNodes := make([]*Node23, 0)
 	for i, child := range n.children {
 		log.Tracef("upsertInternal: i=%d child=%s itemSubsets[i]=%v\n", i, child, itemSubsets[i])
-		child_promoted_nodes := child.upsert(itemSubsets[i])
-		promoted_nodes = append(promoted_nodes, child_promoted_nodes...)
-		log.Tracef("upsertInternal: i=%d promoted_nodes=%v \n", i, promoted_nodes)
+		childPromotedNodes, childNewFirstKey := child.upsert(itemSubsets[i])
+		innerPromotedNodes = append(innerPromotedNodes, childPromotedNodes...)
+		log.Tracef("upsertInternal: i=%d innerPromotedNodes=%v childNewFirstKey=%s\n", i, innerPromotedNodes, pointerValue(childNewFirstKey))
+		if childNewFirstKey != nil {
+			if i > 0 {
+				// Handle newFirstKey here
+				n.children[i-1].updateLastNextKey(childNewFirstKey)
+				log.Tracef("upsertInternal: i=%d update last next key childNewFirstKey=%s\n", i, pointerValue(childNewFirstKey))
+			} else {
+				// Propagate newFirstKey up
+				newFirstKey = childNewFirstKey
+				log.Tracef("upsertInternal: i=%d propagated newFirstKey=%s\n", i, pointerValue(newFirstKey))
+			}
+		}
 	}
 	log.Tracef("upsertInternal: n=%s\n", n)
-	//n.children = promoted_nodes
-	n = makeInternalNode(promoted_nodes)
-	log.Tracef("upsertInternal: n=%s\n", n)
+	n = makeInternalNode(innerPromotedNodes)
+	log.Tracef("upsertInternal: n=%s newFirstKey=%s\n", n, pointerValue(newFirstKey))
 	nodes := make([]*Node23, 0)
 	if n.childrenCount() > 3 {
 		for n.childrenCount() > 3 {
 			nodes = append(nodes, makeInternalNode(n.children[:2]))
 			n.children = n.children[2:]
 		}
-		//TODO: nodes = append(nodes, n) can we save one allocation?
 		nodes = append(nodes, makeInternalNode(n.children[:]))
-		//nodes = append(nodes, n)
-		return nodes
+		return nodes, newFirstKey
 	} else {
-		return []*Node23{n}
+		return []*Node23{n}, newFirstKey
 	}
-}
-
-func (n *Node23) splitItems(kvItems []KeyValue) [][]KeyValue {
-	ensure(!n.isLeaf, "splitItems: node is not internal")
-	ensure(len(n.keys) > 0, "splitItems: internal node has no keys")
-	log.Tracef("splitItems: keys=%v-%v kvItems=%v\n", ptr2pte(n.keys), n.keys, kvItems)
-	itemSubsets := make([][]KeyValue, 0)
-	for i, key := range n.keys {
-		splitIndex := sort.Search(len(kvItems), func(i int) bool { return kvItems[i].key > *key })
-		log.Tracef("splitItems: key=%d-(%p) splitIndex=%d\n", *key, key, splitIndex)
-		itemSubsets = append(itemSubsets, kvItems[:splitIndex])
-		kvItems = kvItems[splitIndex:]
-		if i == len(n.keys)-1 {
-			itemSubsets = append(itemSubsets, kvItems)
-		}
-	}
-	ensure(len(itemSubsets) == len(n.children), "item subsets and children have different cardinality")
-	return itemSubsets
 }
 
 func (n *Node23) addOrReplaceKeys(kvItems []KeyValue) {
@@ -321,15 +329,43 @@ func (n *Node23) addOrReplaceKeys(kvItems []KeyValue) {
 	log.Debugf("addOrReplaceKeys: keys=%v-%v values=%v-%v\n", ptr2pte(n.keys), n.keys, ptr2pte(n.values), n.values)
 }
 
-func (n *Node23) keyCount() int {
-	return len(n.keys)
+func (n *Node23) splitItems(kvItems []KeyValue) [][]KeyValue {
+	ensure(!n.isLeaf, "splitItems: node is not internal")
+	ensure(len(n.keys) > 0, "splitItems: internal node has no keys")
+	log.Tracef("splitItems: keys=%v-%v kvItems=%v\n", ptr2pte(n.keys), n.keys, kvItems)
+	itemSubsets := make([][]KeyValue, 0)
+	for i, key := range n.keys {
+		splitIndex := sort.Search(len(kvItems), func(i int) bool { return kvItems[i].key > *key })
+		log.Tracef("splitItems: key=%d-(%p) splitIndex=%d\n", *key, key, splitIndex)
+		itemSubsets = append(itemSubsets, kvItems[:splitIndex])
+		kvItems = kvItems[splitIndex:]
+		if i == len(n.keys)-1 {
+			itemSubsets = append(itemSubsets, kvItems)
+		}
+	}
+	ensure(len(itemSubsets) == len(n.children), "item subsets and children have different cardinality")
+	return itemSubsets
 }
 
-func (n *Node23) childrenCount() int {
-	return len(n.children)
+func (n *Node23) updateLastNextKey(nextKey *Felt) {
+	if n.isLeaf {
+		ensure(len(n.keys) > 0, "updateLastNextKey: leaf node has no keys")
+		n.keys[len(n.keys)-1] = nextKey
+	} else {
+		ensure(len(n.children) > 0, "updateLastNextKey: internal node has no children")
+		n.children[len(n.children)-1].updateLastNextKey(nextKey)
+	}
 }
 
-func ptr2pte(pointers []*Felt) ([]Felt) {
+func pointerValue(pointer *Felt) string {
+	if pointer != nil {
+		return fmt.Sprintf("%d", *pointer)
+	} else {
+		return "<nil>"
+	}
+}
+
+func ptr2pte(pointers []*Felt) []Felt {
 	pointees := make([]Felt, 0)
 	for _, ptr := range pointers {
 		if ptr != nil {

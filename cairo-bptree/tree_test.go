@@ -6,66 +6,94 @@ package cairo_bptree
 import (
 	"testing"
 
-	log "github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 )
 
 func assertTwoThreeTree(t *testing.T, tree *Tree23, expectedKeysPostOrder []Felt) {
 	assert.True(t, tree.IsTwoThree(), "2-3-tree properties do not hold for tree: %v", tree.WalkKeysPostOrder())
 	if expectedKeysPostOrder != nil {
-		assert.Equal(t, expectedKeysPostOrder, tree.WalkKeysPostOrder(), "different in-order keys: %v", tree.WalkKeysPostOrder())
+		assert.Equal(t, expectedKeysPostOrder, tree.WalkKeysPostOrder(), "different post-order keys: %v", tree.WalkKeysPostOrder())
 	}
 }
 
-var t0, t1, t2, t3, t4, t5, tn *Tree23
+type IsTree23Test struct {
+	initialItems		[]KeyValue
+	expectedKeysPostOrder	[]Felt
+}
 
-func init() {
-	log.SetLevel(log.WarnLevel)
+type UpsertTest struct {
+	initialItems		[]KeyValue
+	initialKeysPostOrder	[]Felt
+	deltaItems		[]KeyValue
+	finalKeysPostOrder	[]Felt
+}
 
-	t0 = NewTree23()
-	t0.GraphAndPicture("t0_initial", false)
+var isTree23Tests = []IsTree23Test {
+	{[]KeyValue{},							[]Felt{}},
+	{[]KeyValue{{1, 1}},						[]Felt{1}},
+	{[]KeyValue{{1, 1}, {2, 2}},					[]Felt{1, 2}},
+	{[]KeyValue{{1, 1}, {2, 2}, {3, 3}},				[]Felt{1, 2, 3}},
+	{[]KeyValue{{1, 1}, {2, 2}, {3, 3}, {4, 4}},			[]Felt{1, 2, 3, 4}},
+	{[]KeyValue{{1, 1}, {2, 2}, {3, 3}, {4, 4}, {5, 5}},		[]Felt{1, 2, 3, 4, 5}},
+	{[]KeyValue{{0, 0}, {1, 1}, {10, 10}, {100, 100}, {101, 101}},	[]Felt{0, 1, 10, 100, 101}},
+}
 
-	kv1 := KeyValue{Felt(1), Felt(1)}
-	t1 = NewTree23().Upsert([]KeyValue{kv1})
-	t1.GraphAndPicture("t1_initial", false)
+var insertTests = []UpsertTest {
+	{[]KeyValue{},					[]Felt{},		[]KeyValue{{0, 0}},				[]Felt{0}},
+	{[]KeyValue{{10, 10}},				[]Felt{10},		[]KeyValue{{0, 0}, {5, 5}},			[]Felt{0, 5, 10}},
+	{[]KeyValue{{10, 10}, {20, 20}},		[]Felt{10, 20},		[]KeyValue{{0, 0}, {5, 5}, {15, 15}},		[]Felt{0, 5, 10, 15, 20}},
+	{[]KeyValue{{10, 10}, {20, 20}, {30, 30}},	[]Felt{10, 20, 30},	[]KeyValue{{0, 0}, {5, 5}, {15, 15}, {25, 25}},	[]Felt{0, 5, 10, 15, 20, 25, 30}},
+}
 
-	kv2 := KeyValue{Felt(2), Felt(2)}
-	t2 = NewTree23().Upsert([]KeyValue{kv1, kv2})
-	t2.GraphAndPicture("t2_initial", false)
+var updateTests = []UpsertTest {
+	{[]KeyValue{{10, 10}},				[]Felt{10},		[]KeyValue{{10, 100}},			[]Felt{10}},
+	{[]KeyValue{{10, 10}, {20, 20}},		[]Felt{10, 20},		[]KeyValue{{10, 100}, {20, 200}},	[]Felt{10, 20}},
+}
 
-	kv3 := KeyValue{Felt(3), Felt(3)}
-	t3 = NewTree23().Upsert([]KeyValue{kv1, kv2, kv3})
-	t3.GraphAndPicture("t3_initial", false)
+func TestIs23Tree(t *testing.T) {
+	for _, data := range isTree23Tests {
+		tree := NewTree23().Upsert(data.initialItems)
+		assertTwoThreeTree(t, tree, data.expectedKeysPostOrder)
+	}
+}
 
-	kv4 := KeyValue{Felt(4), Felt(4)}
-	t4 = NewTree23().Upsert([]KeyValue{kv1, kv2, kv3, kv4})
-	t4.GraphAndPicture("t4_initial", false)
+func TestUpsertInsert(t *testing.T) {
+	for _, data := range insertTests {
+		tree := NewTree23().Upsert(data.initialItems)
+		assertTwoThreeTree(t, tree, data.initialKeysPostOrder)
+		tree.Upsert(data.deltaItems)
+		assertTwoThreeTree(t, tree, data.finalKeysPostOrder)
+	}
+}
 
-	kv5 := KeyValue{Felt(5), Felt(5)}
-	t5 = NewTree23().Upsert([]KeyValue{kv1, kv2, kv3, kv4, kv5})
-	t5.GraphAndPicture("t5_initial", false)
+func TestUpsertUpdate(t *testing.T) {
+	for _, data := range updateTests {
+		tree := NewTree23().Upsert(data.initialItems)
+		assertTwoThreeTree(t, tree, data.initialKeysPostOrder)
+		tree.Upsert(data.deltaItems)
+		assertTwoThreeTree(t, tree, data.finalKeysPostOrder)
+		// TODO: add check for new values
+	}
+}
 
+func TestUpsertIdempotent(t *testing.T) {
+	for _, data := range isTree23Tests {
+		tree := NewTree23().Upsert(data.initialItems)
+		assertTwoThreeTree(t, tree, data.expectedKeysPostOrder)
+		tree.Upsert(data.initialItems)
+		assertTwoThreeTree(t, tree, data.expectedKeysPostOrder)
+	}
+}
+
+func TestUpsertNextKey(t *testing.T) {
 	dataCount := 4
 	data := make([]KeyValue, dataCount)
 	for i := 0; i < dataCount; i++ {
 		data[i] = KeyValue{Felt(i*2), Felt(i*2)}
 	}
-	tn = NewTree23().Upsert(data)
-	tn.GraphAndPicture("tn_initial", false)
-}
+	tn := NewTree23().Upsert(data)
+	tn.GraphAndPicture("tn1", false)
 
-func TestIs23Tree(t *testing.T) {
-	assertTwoThreeTree(t, t0, []Felt{})
-	assertTwoThreeTree(t, t1, []Felt{1})
-	assertTwoThreeTree(t, t2, []Felt{1, 2})
-	assertTwoThreeTree(t, t3, []Felt{1, 2, 3})
-	assertTwoThreeTree(t, t4, []Felt{1, 2, 3, 4})
-	assertTwoThreeTree(t, t5, []Felt{1, 2, 3, 4, 5})
-}
-
-func TestUpsert(t *testing.T) {
-	dataCount := 4
-	data := make([]KeyValue, dataCount)
 	for i := 0; i < dataCount; i++ {
 		data[i] = KeyValue{Felt(i*2+1), Felt(i*2+1)}
 	}
@@ -82,4 +110,7 @@ func TestUpsert(t *testing.T) {
 	tn = tn.Upsert(data)
 	tn.GraphAndPicture("tn4", false)
 	assertTwoThreeTree(t, tn, []Felt{0, 1, 2, 3, 4, 5, 6, 7, 10, 100, 101, 150, 200, 201, 202, 250, 251, 252})
+}
+
+func TestUpsertFirstKey(t *testing.T) {
 }

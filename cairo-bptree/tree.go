@@ -305,27 +305,41 @@ func (n *Node23) upsertInternal(kvItems []KeyValue) (promoted []*Node23, newFirs
 }
 
 func (n *Node23) addOrReplaceKeys(kvItems []KeyValue) {
-	ensure(n.isLeaf, "node is not leaf")
-	ensure(len(n.keys) > 0 && len(n.values) > 0, "node keys/values are not empty")
-	ensure(len(kvItems) > 0, "kvItems is not empty")
+	ensure(n.isLeaf, "addOrReplaceKeys: node is not leaf")
+	ensure(len(n.keys) > 0 && len(n.values) > 0, "addOrReplaceKeys: node keys/values are not empty")
+	ensure(len(kvItems) > 0, "addOrReplaceKeys: kvItems is not empty")
 	log.Debugf("addOrReplaceKeys: keys=%v-%v values=%v-%v kvItems=%v\n", ptr2pte(n.keys), n.keys, ptr2pte(n.values), n.values, kvItems)
 	
 	nextKey, nextValue := n.nextKey(), n.nextValue()
-	log.Debugf("addOrReplaceKeys: nextKey=%p values=%p\n", nextKey, nextValue)
+	log.Tracef("addOrReplaceKeys: nextKey=%p values=%p\n", nextKey, nextValue)
+
 	n.keys = n.keys[:len(n.keys)-1]
 	n.values = n.values[:len(n.values)-1]
-	log.Debugf("addOrReplaceKeys: keys=%v-%v values=%v-%v\n", ptr2pte(n.keys), n.keys, ptr2pte(n.values), n.values)
+	log.Tracef("addOrReplaceKeys: keys=%v-%v values=%v-%v\n", ptr2pte(n.keys), n.keys, ptr2pte(n.values), n.values)
+
 	for _, kvPair := range kvItems {
 		key, value := kvPair.key, kvPair.value
-		n.keys = append(n.keys, &key)
-		n.values = append(n.values, &value)
+		keyFound := false
+		for i, nKey := range n.keys {
+			ensure(nKey != nil, fmt.Sprintf("addOrReplaceKeys: key[%d] is nil in %s", i, n))
+			log.Tracef("addOrReplaceKeys: key=%d values=%d nKey=%d\n", key, value, *nKey)
+			if *nKey == key {
+				keyFound = true
+				n.values[i] = &value
+				break
+			}
+		}
+		if (!keyFound) {
+			n.keys = append(n.keys, &key)
+			n.values = append(n.values, &value)
+		}
 	}
-	log.Debugf("addOrReplaceKeys: keys=%v-%v values=%v-%v\n", ptr2pte(n.keys), n.keys, ptr2pte(n.values), n.values)
+	log.Tracef("addOrReplaceKeys: keys=%v-%v values=%v-%v\n", ptr2pte(n.keys), n.keys, ptr2pte(n.values), n.values)
+
 	sort.Slice(n.keys, func(i, j int) bool { return *n.keys[i] < *n.keys[j] })
 	sort.Slice(n.values, func(i, j int) bool { return *n.values[i] < *n.values[j] })
 	n.keys = append(n.keys, nextKey)
 	n.values = append(n.values, nextValue)
-	log.Debugf("addOrReplaceKeys: keys=%v-%v values=%v-%v\n", ptr2pte(n.keys), n.keys, ptr2pte(n.values), n.values)
 	log.Debugf("addOrReplaceKeys: keys=%v-%v values=%v-%v\n", ptr2pte(n.keys), n.keys, ptr2pte(n.values), n.values)
 }
 
@@ -335,7 +349,7 @@ func (n *Node23) splitItems(kvItems []KeyValue) [][]KeyValue {
 	log.Tracef("splitItems: keys=%v-%v kvItems=%v\n", ptr2pte(n.keys), n.keys, kvItems)
 	itemSubsets := make([][]KeyValue, 0)
 	for i, key := range n.keys {
-		splitIndex := sort.Search(len(kvItems), func(i int) bool { return kvItems[i].key > *key })
+		splitIndex := sort.Search(len(kvItems), func(i int) bool { return kvItems[i].key >= *key })
 		log.Tracef("splitItems: key=%d-(%p) splitIndex=%d\n", *key, key, splitIndex)
 		itemSubsets = append(itemSubsets, kvItems[:splitIndex])
 		kvItems = kvItems[splitIndex:]

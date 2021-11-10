@@ -42,7 +42,7 @@ func (t *Tree23) WalkPostOrder(w Walker) []interface{} {
 	return t.root.walkPostOrder(w)
 }
 
-func (t *Tree23) WalkKeysPostOrder() ([]Felt) {
+func (t *Tree23) WalkKeysPostOrder() []Felt {
 	key_pointers := make([]*Felt, 0)
 	t.WalkPostOrder(func(n *Node23) interface{} {
 		if n.isLeaf && n.keyCount() > 0 {
@@ -56,7 +56,7 @@ func (t *Tree23) WalkKeysPostOrder() ([]Felt) {
 	return keys
 }
 
-func (t *Tree23) Upsert(kvItems []KeyValue) (*Tree23) {
+func (t *Tree23) Upsert(kvItems []KeyValue) *Tree23 {
 	log.Tracef("Upsert: t=%p root=%p kvItems=%v\n", t, t.root, kvItems)
 	nodes, _ := t.root.upsert(kvItems)
 	log.Tracef("Upsert: nodes=%v\n", nodes)
@@ -70,7 +70,7 @@ func (t *Tree23) Upsert(kvItems []KeyValue) (*Tree23) {
 	return t
 }
 
-func (t *Tree23) promote(nodes []*Node23) (*Node23) {
+func (t *Tree23) promote(nodes []*Node23) *Node23 {
 	log.Debugf("promote: nodes=%v\n", nodes)
 	numberOfGroups := len(nodes) / 3
 	if len(nodes) % 3 > 0 {
@@ -124,19 +124,13 @@ func (n *Node23) String() string {
 	return s
 }
 
-func makeInternalNode(children []*Node23) (*Node23) {
-	ensure(len(children) > 0, "number of children is zero")
-	internalKeys := make([]*Felt, 0, len(children)-1)
-	for _, child := range children[:len(children)-1] {
-		ensure(child.nextKey() != nil, "child next key is zero")
-		nextKey := *child.nextKey()
-		internalKeys = append(internalKeys, &nextKey)
-	}
+func makeInternalNode(children []*Node23) *Node23 {
+	internalKeys := internalKeysFromChildren(children)
 	n := &Node23{isLeaf: false, children: children, keys: internalKeys, values: make([]*Felt, 0)}
 	return n
 }
 
-func makeLeafNode(keys, values []*Felt) (*Node23) {
+func makeLeafNode(keys, values []*Felt) *Node23 {
 	ensure(len(keys) > 0, "number of keys is zero")
 	ensure(len(keys) == len(values), "keys and values have different cardinality")
 	leafKeys := append(make([]*Felt, 0, len(keys)), keys...)
@@ -147,6 +141,17 @@ func makeLeafNode(keys, values []*Felt) (*Node23) {
 
 func makeEmptyLeafNode() (*Node23) {
 	return makeLeafNode(make([]*Felt, 1), make([]*Felt, 1))
+}
+
+func internalKeysFromChildren(children []*Node23) []*Felt {
+	ensure(len(children) > 0, "number of children is zero")
+	internalKeys := make([]*Felt, 0, len(children)-1)
+	for _, child := range children[:len(children)-1] {
+		ensure(child.nextKey() != nil, "child next key is zero")
+		nextKey := *child.nextKey()
+		internalKeys = append(internalKeys, &nextKey)
+	}
+	return internalKeys
 }
 
 func (n *Node23) isTwoThree() bool {
@@ -179,6 +184,11 @@ func (n *Node23) firstKey() *Felt {
 	return n.keys[0]
 }
 
+func (n *Node23) lastChild() *Node23 {
+	ensure(len(n.children) > 0, "lastChild: node has no children")
+	return n.children[len(n.children)-1]
+}
+
 func (n *Node23) nextKey() *Felt {
 	ensure(len(n.keys) > 0, "nextKey: node has no key")
 	return n.keys[len(n.keys)-1]
@@ -193,11 +203,16 @@ func (n *Node23) rawPointer() uintptr {
 	return uintptr(unsafe.Pointer(n))
 }
 
+func (n *Node23) setNextKey(nextKey *Felt) {
+	ensure(len(n.keys) > 0, "setNextKey: node has no key")
+	n.keys[len(n.keys)-1] = nextKey
+}
+
 func (n *Node23) walkPostOrder(w Walker) []interface{} {
 	items := make([]interface{}, 0)
 	if !n.isLeaf {
 		for _, child := range n.children {
-			//log.Tracef("walkPostOrder: n=%s child=%s\n", n, child)
+			log.Tracef("walkPostOrder: n=%s child=%s\n", n, child)
 			child_items := child.walkPostOrder(w)
 			items = append(items, child_items...)
 		}
@@ -271,15 +286,23 @@ func (n *Node23) upsertInternal(kvItems []KeyValue) (promoted []*Node23, newFirs
 
 	log.Tracef("upsertInternal: n=%s itemSubsets=%v\n", n, itemSubsets)
 	innerPromotedNodes := make([]*Node23, 0)
-	for i, child := range n.children {
-		log.Tracef("upsertInternal: i=%d child=%s itemSubsets[i]=%v\n", i, child, itemSubsets[i])
+	for i := len(n.children)-1; i >= 0; i-- {
+		child := n.children[i]
+		log.Tracef("upsertInternal: reverse i=%d child=%s itemSubsets[i]=%v\n", i, child, itemSubsets[i])
 		childPromotedNodes, childNewFirstKey := child.upsert(itemSubsets[i])
-		innerPromotedNodes = append(innerPromotedNodes, childPromotedNodes...)
+		innerPromotedNodes = append(childPromotedNodes, innerPromotedNodes...)
 		log.Tracef("upsertInternal: i=%d innerPromotedNodes=%v childNewFirstKey=%s\n", i, innerPromotedNodes, pointerValue(childNewFirstKey))
 		if childNewFirstKey != nil {
 			if i > 0 {
 				// Handle newFirstKey here
-				n.children[i-1].updateLastNextKey(childNewFirstKey)
+				previousChild := n.children[i-1]
+				if previousChild.isLeaf {
+					ensure(len(previousChild.keys) > 0, "upsertInternal: previousChild has no keys")
+					previousChild.setNextKey(childNewFirstKey)
+				} else {
+					ensure(len(previousChild.children) > 0, "upsertInternal: previousChild has no children")
+					previousChild.lastChild().setNextKey(childNewFirstKey)
+				}
 				log.Tracef("upsertInternal: i=%d update last next key childNewFirstKey=%s\n", i, pointerValue(childNewFirstKey))
 			} else {
 				// Propagate newFirstKey up
@@ -288,8 +311,9 @@ func (n *Node23) upsertInternal(kvItems []KeyValue) (promoted []*Node23, newFirs
 			}
 		}
 	}
-	log.Tracef("upsertInternal: n=%s\n", n)
-	n = makeInternalNode(innerPromotedNodes)
+	log.Tracef("upsertInternal: n=%s innerPromotedNodes=%v\n", n, innerPromotedNodes)
+	n.children = innerPromotedNodes
+	n.keys = internalKeysFromChildren(n.children)
 	log.Tracef("upsertInternal: n=%s newFirstKey=%s\n", n, pointerValue(newFirstKey))
 	nodes := make([]*Node23, 0)
 	if n.childrenCount() > 3 {
@@ -359,16 +383,6 @@ func (n *Node23) splitItems(kvItems []KeyValue) [][]KeyValue {
 	}
 	ensure(len(itemSubsets) == len(n.children), "item subsets and children have different cardinality")
 	return itemSubsets
-}
-
-func (n *Node23) updateLastNextKey(nextKey *Felt) {
-	if n.isLeaf {
-		ensure(len(n.keys) > 0, "updateLastNextKey: leaf node has no keys")
-		n.keys[len(n.keys)-1] = nextKey
-	} else {
-		ensure(len(n.children) > 0, "updateLastNextKey: internal node has no children")
-		n.children[len(n.children)-1].updateLastNextKey(nextKey)
-	}
 }
 
 func pointerValue(pointer *Felt) string {

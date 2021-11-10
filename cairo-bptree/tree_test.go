@@ -6,6 +6,7 @@ package cairo_bptree
 import (
 	"testing"
 
+	log "github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -48,6 +49,10 @@ var insertTests = []UpsertTest {
 var updateTests = []UpsertTest {
 	{[]KeyValue{{10, 10}},				[]Felt{10},		[]KeyValue{{10, 100}},			[]Felt{10}},
 	{[]KeyValue{{10, 10}, {20, 20}},		[]Felt{10, 20},		[]KeyValue{{10, 100}, {20, 200}},	[]Felt{10, 20}},
+}
+
+func init() {
+	log.SetLevel(log.WarnLevel)
 }
 
 func TestIs23Tree(t *testing.T) {

@@ -4,12 +4,44 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
+type Stats struct {
+	ExposedCount	uint64
+}
+
 type Tree23 struct {
 	root	*Node23
 }
 
-func NewTree23() *Tree23 {
+func NewEmptyTree23() *Tree23 {
 	return &Tree23{}
+}
+
+func NewTree23(kvItems []KeyValue) *Tree23 {
+	tree := new(Tree23).Upsert(kvItems, &Stats{})
+	tree.reset()
+	return tree
+}
+
+func (t *Tree23) Size() int {
+	node_items := t.WalkPostOrder(func(n *Node23) interface{} { return n })
+	return len(node_items)
+}
+
+func (t *Tree23) CountNewHashes() (hashCount uint) {
+	node_items := t.WalkPostOrder(func(n *Node23) interface{} { return n })
+	for i := range node_items {
+		if node_items[i].(*Node23).exposed {
+			hashCount++
+		}
+	}
+	return hashCount
+}
+
+func (t *Tree23) RootHash() []byte {
+	if t.root == nil {
+		return []byte{}
+	}
+	return t.root.hashNode()
 }
 
 func (t *Tree23) IsTwoThree() bool {
@@ -50,9 +82,13 @@ func (t *Tree23) WalkKeysPostOrder() []Felt {
 	return keys
 }
 
-func (t *Tree23) Upsert(kvItems []KeyValue) *Tree23 {
+func (t *Tree23) UpsertNoStats(kvItems []KeyValue) *Tree23 {
+	return t.Upsert(kvItems, &Stats{})
+}
+
+func (t *Tree23) Upsert(kvItems []KeyValue, stats *Stats) *Tree23 {
 	log.Tracef("Upsert: t=%p root=%p kvItems=%v\n", t, t.root, kvItems)
-	nodes, _ := t.root.upsert(kvItems)
+	nodes, _ := t.root.upsert(kvItems, stats)
 	log.Tracef("Upsert: nodes=%v\n", nodes)
 	ensure(len(nodes) > 0, "nodes length is zero")
 	if len(nodes) == 1 {
@@ -92,4 +128,11 @@ func (t *Tree23) promote(nodes []*Node23) *Node23 {
 		log.Debugf("promote: upperNodes=%v\n", upperNodes)
 		return t.promote(upperNodes)
 	}
+}
+
+func (t *Tree23) reset() {
+	if t.root == nil {
+		return
+	}
+	t.root.reset()
 }

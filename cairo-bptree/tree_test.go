@@ -4,6 +4,7 @@
 package cairo_bptree
 
 import (
+	"fmt"
 	"testing"
 
 	log "github.com/sirupsen/logrus"
@@ -57,25 +58,25 @@ func init() {
 
 func TestIs23Tree(t *testing.T) {
 	for _, data := range isTree23Tests {
-		tree := NewTree23().Upsert(data.initialItems)
+		tree := NewTree23(data.initialItems)
 		assertTwoThreeTree(t, tree, data.expectedKeysPostOrder)
 	}
 }
 
 func TestUpsertInsert(t *testing.T) {
 	for _, data := range insertTests {
-		tree := NewTree23().Upsert(data.initialItems)
+		tree := NewTree23(data.initialItems)
 		assertTwoThreeTree(t, tree, data.initialKeysPostOrder)
-		tree.Upsert(data.deltaItems)
+		tree.UpsertNoStats(data.deltaItems)
 		assertTwoThreeTree(t, tree, data.finalKeysPostOrder)
 	}
 }
 
 func TestUpsertUpdate(t *testing.T) {
 	for _, data := range updateTests {
-		tree := NewTree23().Upsert(data.initialItems)
+		tree := NewTree23(data.initialItems)
 		assertTwoThreeTree(t, tree, data.initialKeysPostOrder)
-		tree.Upsert(data.deltaItems)
+		tree.UpsertNoStats(data.deltaItems)
 		assertTwoThreeTree(t, tree, data.finalKeysPostOrder)
 		// TODO: add check for new values
 	}
@@ -83,9 +84,9 @@ func TestUpsertUpdate(t *testing.T) {
 
 func TestUpsertIdempotent(t *testing.T) {
 	for _, data := range isTree23Tests {
-		tree := NewTree23().Upsert(data.initialItems)
+		tree := NewTree23(data.initialItems)
 		assertTwoThreeTree(t, tree, data.expectedKeysPostOrder)
-		tree.Upsert(data.initialItems)
+		tree.UpsertNoStats(data.initialItems)
 		assertTwoThreeTree(t, tree, data.expectedKeysPostOrder)
 	}
 }
@@ -96,25 +97,27 @@ func TestUpsertNextKey(t *testing.T) {
 	for i := 0; i < dataCount; i++ {
 		data[i] = KeyValue{Felt(i*2), Felt(i*2)}
 	}
-	tn := NewTree23().Upsert(data)
+	tn := NewTree23(data)
 	tn.GraphAndPicture("tn1", false)
 
 	for i := 0; i < dataCount; i++ {
 		data[i] = KeyValue{Felt(i*2+1), Felt(i*2+1)}
 	}
-	tn = tn.Upsert(data)
+	tn = tn.UpsertNoStats(data)
 	tn.GraphAndPicture("tn2", false)
 	assertTwoThreeTree(t, tn, []Felt{0, 1, 2, 3, 4, 5, 6, 7})
 	
 	data = []KeyValue{{100, 100}, {101, 101}, {200, 200}, {201, 201}, {202, 202}}
-	tn = tn.Upsert(data)
+	tn = tn.UpsertNoStats(data)
 	tn.GraphAndPicture("tn3", false)
 	assertTwoThreeTree(t, tn, []Felt{0, 1, 2, 3, 4, 5, 6, 7, 100, 101, 200, 201, 202})
 	
 	data = []KeyValue{{10, 10}, {150, 150}, {250, 250}, {251, 251}, {252, 252}}
-	tn = tn.Upsert(data)
+	tn = tn.UpsertNoStats(data)
 	tn.GraphAndPicture("tn4", false)
 	assertTwoThreeTree(t, tn, []Felt{0, 1, 2, 3, 4, 5, 6, 7, 10, 100, 101, 150, 200, 201, 202, 250, 251, 252})
+
+	fmt.Printf("tn rootHash=%x\n", tn.RootHash())
 }
 
 func TestUpsertFirstKey(t *testing.T) {

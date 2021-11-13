@@ -26,11 +26,24 @@ type Node23 struct {
 	children	[]*Node23
 	keys		[]*Felt
 	values		[]*Felt
+	exposed		bool
+}
+
+func (n *Node23) String() string {
+	s := fmt.Sprintf("{%p isLeaf=%t keys=%v-%v children=[", n, n.isLeaf, ptr2pte(n.keys), n.keys)
+	for i, child := range n.children {
+		s += fmt.Sprintf("%p", child)
+		if i != len(n.children)-1 {
+			s += " "
+		}
+	}
+	s += "]}"
+	return s
 }
 
 func makeInternalNode(children []*Node23) *Node23 {
 	internalKeys := internalKeysFromChildren(children)
-	n := &Node23{isLeaf: false, children: children, keys: internalKeys, values: make([]*Felt, 0)}
+	n := &Node23{isLeaf: false, children: children, keys: internalKeys, values: make([]*Felt, 0), exposed: true}
 	return n
 }
 
@@ -39,7 +52,7 @@ func makeLeafNode(keys, values []*Felt) *Node23 {
 	ensure(len(keys) == len(values), "keys and values have different cardinality")
 	leafKeys := append(make([]*Felt, 0, len(keys)), keys...)
 	leafValues := append(make([]*Felt, 0, len(values)), values...)
-	n := &Node23{isLeaf: true, children: make([]*Node23, 0), keys: leafKeys, values: leafValues}
+	n := &Node23{isLeaf: true, children: make([]*Node23, 0), keys: leafKeys, values: leafValues, exposed: true}
 	return n
 }
 
@@ -58,16 +71,14 @@ func internalKeysFromChildren(children []*Node23) []*Felt {
 	return internalKeys
 }
 
-func (n *Node23) String() string {
-	s := fmt.Sprintf("{%p isLeaf=%t keys=%v-%v children=[", n, n.isLeaf, ptr2pte(n.keys), n.keys)
-	for i, child := range n.children {
-		s += fmt.Sprintf("%p", child)
-		if i != len(n.children)-1 {
-			s += " "
+func (n *Node23) reset() {
+	if n.isLeaf {
+		n.exposed = false
+	} else {
+		for _, child := range n.children {
+			child.reset()
 		}
 	}
-	s += "]}"
-	return s
 }
 
 func (n *Node23) isTwoThree() bool {
@@ -93,6 +104,10 @@ func (n *Node23) keyCount() int {
 
 func (n *Node23) childrenCount() int {
 	return len(n.children)
+}
+
+func (n *Node23) valueCount() int {
+	return len(n.values)
 }
 
 func (n *Node23) firstKey() *Felt {
@@ -148,9 +163,9 @@ func (n *Node23) walkNodesPostOrder() []*Node23 {
 	return nodes
 }
 
-func (n *Node23) upsert(kvItems []KeyValue) (promoted []*Node23, newFirstKey *Felt) {
+func (n *Node23) upsert(kvItems []KeyValue, stats *Stats) (promoted []*Node23, newFirstKey *Felt) {
 	log.Tracef("upsert: n=%p kvItems=%v\n", n, kvItems)
-	ensure(sort.IsSorted(KeyValueByKey(kvItems)), "kvItems is not sorted by key")
+	ensure(sort.IsSorted(KeyValueByKey(kvItems)), "kvItems are not sorted by key")
 	if len(kvItems) == 0 {
 		return []*Node23{n}, nil
 	}
@@ -159,15 +174,19 @@ func (n *Node23) upsert(kvItems []KeyValue) (promoted []*Node23, newFirstKey *Fe
 	}
 	log.Tracef("upsert: n=%p\n", n)
 	if n.isLeaf {
-		return n.upsertLeaf(kvItems)
+		return n.upsertLeaf(kvItems, stats)
 	} else {
-		return n.upsertInternal(kvItems)
+		return n.upsertInternal(kvItems, stats)
 	}
 }
 
-func (n *Node23) upsertLeaf(kvItems []KeyValue) (promoted []*Node23, newFirstKey *Felt) {
-	log.Tracef("upsertLeaf: n=%p kvItems=%v\n", n, kvItems)
+func (n *Node23) upsertLeaf(kvItems []KeyValue, stats *Stats) (promoted []*Node23, newFirstKey *Felt) {
 	ensure(n.isLeaf, "node is not leaf")
+	log.Tracef("upsertLeaf: n=%p kvItems=%v\n", n, kvItems)
+	if !n.exposed {
+		n.exposed = true
+		stats.ExposedCount++
+	}
 
 	currentFirstKey := n.firstKey()
 	n.addOrReplaceKeys(kvItems)
@@ -196,9 +215,13 @@ func (n *Node23) upsertLeaf(kvItems []KeyValue) (promoted []*Node23, newFirstKey
 	}
 }
 
-func (n *Node23) upsertInternal(kvItems []KeyValue) (promoted []*Node23, newFirstKey *Felt) {
+func (n *Node23) upsertInternal(kvItems []KeyValue, stats *Stats) (promoted []*Node23, newFirstKey *Felt) {
 	ensure(!n.isLeaf, "node is not internal")
 	log.Tracef("upsertInternal: n=%s keyCount=%d\n", n, n.keyCount())
+	if !n.exposed {
+		n.exposed = true
+		stats.ExposedCount++
+	}
 
 	itemSubsets := n.splitItems(kvItems)
 
@@ -207,7 +230,7 @@ func (n *Node23) upsertInternal(kvItems []KeyValue) (promoted []*Node23, newFirs
 	for i := len(n.children)-1; i >= 0; i-- {
 		child := n.children[i]
 		log.Tracef("upsertInternal: reverse i=%d child=%s itemSubsets[i]=%v\n", i, child, itemSubsets[i])
-		childPromotedNodes, childNewFirstKey := child.upsert(itemSubsets[i])
+		childPromotedNodes, childNewFirstKey := child.upsert(itemSubsets[i], stats)
 		innerPromotedNodes = append(childPromotedNodes, innerPromotedNodes...)
 		log.Tracef("upsertInternal: i=%d innerPromotedNodes=%v childNewFirstKey=%s\n", i, innerPromotedNodes, pointerValue(childNewFirstKey))
 		if childNewFirstKey != nil {
@@ -287,7 +310,7 @@ func (n *Node23) addOrReplaceKeys(kvItems []KeyValue) {
 
 func (n *Node23) splitItems(kvItems []KeyValue) [][]KeyValue {
 	ensure(!n.isLeaf, "splitItems: node is not internal")
-	ensure(len(n.keys) > 0, "splitItems: internal node has no keys")
+	ensure(len(n.keys) > 0, fmt.Sprintf("splitItems: internal node %s has no keys", n))
 	log.Tracef("splitItems: keys=%v-%v kvItems=%v\n", ptr2pte(n.keys), n.keys, kvItems)
 	itemSubsets := make([][]KeyValue, 0)
 	for i, key := range n.keys {
@@ -301,4 +324,54 @@ func (n *Node23) splitItems(kvItems []KeyValue) [][]KeyValue {
 	}
 	ensure(len(itemSubsets) == len(n.children), "item subsets and children have different cardinality")
 	return itemSubsets
+}
+
+func (n *Node23) hashNode() []byte {
+	if n.isLeaf {
+		return n.hashLeaf()
+	} else {
+		return n.hashInternal()
+	}
+}
+
+func (n *Node23) hashLeaf() []byte {
+	ensure(n.isLeaf, "hashLeaf: node is not leaf")
+	ensure(n.valueCount() == n.keyCount(), "hashLeaf: insufficient number of values")
+	switch n.keyCount() {
+	case 2:
+		k, nextKey, v := *n.keys[0], n.keys[1], *n.values[0]
+		if nextKey == nil {
+			return hash2(k.Binary(), v.Binary())
+		} else {
+			return hash2(hash2(k.Binary(), v.Binary()), (*nextKey).Binary())
+		}
+	case 3:
+		k1, k2, nextKey, v1, v2 := *n.keys[0], *n.keys[1], n.keys[2], *n.values[0], *n.values[1]
+		h1 := hash2(k1.Binary(), v1.Binary())
+		h2 := hash2(k2.Binary(), v2.Binary())
+		h12 := hash2(h1, h2)
+		if nextKey == nil {
+			return h12
+		} else {
+			return hash2(h12, (*nextKey).Binary())
+		}
+	default:
+		ensure(false, fmt.Sprintf("hashLeaf: unexpected keyCount=%d\n", n.keyCount()))
+		return []byte{}
+	}
+}
+
+func (n *Node23) hashInternal() []byte {
+	ensure(!n.isLeaf, "hashInternal: node is not internal")
+	switch n.childrenCount() {
+	case 2:
+		child1, child2 := n.children[0], n.children[1]
+		return hash2(child1.hashNode(), child2.hashNode())
+	case 3:
+		child1, child2, child3 := n.children[0], n.children[1], n.children[2]
+		return hash2(hash2(child1.hashNode(), child2.hashNode()), child3.hashNode())
+	default:
+		ensure(false, fmt.Sprintf("hashInternal: unexpected childrenCount=%d\n", n.childrenCount()))
+		return []byte{}
+	}
 }

@@ -58,7 +58,7 @@ func (g *Node23Graph) saveDot(filename string, debug bool) {
 			if n.nextKey() == nil {
 				next = "nil"
 			} else {
-				next = strconv.FormatUint(*n.nextKey(), 10)
+				next = strconv.FormatUint(uint64(*n.nextKey()), 10)
 			}
 			if debug {
 				nodeId = fmt.Sprintf("k=%v %s-%v", ptr2pte(n.keys[:len(n.keys)-1]), next, n.keys)

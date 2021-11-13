@@ -276,7 +276,7 @@ func (n *Node23) addOrReplaceKeys(kvItems []KeyValue) {
 	log.Debugf("addOrReplaceKeys: keys=%v-%v values=%v-%v kvItems=%v\n", ptr2pte(n.keys), n.keys, ptr2pte(n.values), n.values, kvItems)
 	
 	nextKey, nextValue := n.nextKey(), n.nextValue()
-	log.Tracef("addOrReplaceKeys: nextKey=%p values=%p\n", nextKey, nextValue)
+	log.Tracef("addOrReplaceKeys: nextKey=%p nextValue=%p\n", nextKey, nextValue)
 
 	n.keys = n.keys[:len(n.keys)-1]
 	n.values = n.values[:len(n.values)-1]

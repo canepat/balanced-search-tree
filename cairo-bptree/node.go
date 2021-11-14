@@ -340,10 +340,11 @@ func (n *Node23) hashLeaf() []byte {
 	switch n.keyCount() {
 	case 2:
 		k, nextKey, v := *n.keys[0], n.keys[1], *n.values[0]
+		h := hash2(k.Binary(), v.Binary())
 		if nextKey == nil {
-			return hash2(k.Binary(), v.Binary())
+			return h
 		} else {
-			return hash2(hash2(k.Binary(), v.Binary()), (*nextKey).Binary())
+			return hash2(h, (*nextKey).Binary())
 		}
 	case 3:
 		k1, k2, nextKey, v1, v2 := *n.keys[0], *n.keys[1], n.keys[2], *n.values[0], *n.values[1]

@@ -25,19 +25,19 @@ func CreateRandomBinaryFile(prefix string, size int64) *BinaryFile {
 	ensure(size%BLOCKSIZE == 0, fmt.Sprintf("CreateRandomBinaryFile: expected size multiple of 4k bytes, got %d\n", size))
 	
 	file, err := ioutil.TempFile(".", prefix)
-	ensure(err == nil, fmt.Sprintf("CreateRandomBinaryFile: cannot create file %s, err %s\n", file.Name(), err))
+	ensure(err == nil, fmt.Sprintf("CreateRandomBinaryFile: cannot create file %s, error %s\n", file.Name(), err))
 
 	err = file.Truncate(size)
-	ensure(err == nil, fmt.Sprintf("CreateRandomBinaryFile: cannot truncate file %s to %d, err %s\n", file.Name(), size, err))
+	ensure(err == nil, fmt.Sprintf("CreateRandomBinaryFile: cannot truncate file %s to %d, error %s\n", file.Name(), size, err))
 
 	buffer := make([]byte, BLOCKSIZE)
 	for i := int64(0); i < size; i+= BLOCKSIZE {
 		bytesRead, err := io.ReadFull(rand.Reader, buffer)
-		ensure(bytesRead == len(buffer), fmt.Sprintf("insufficient bytes read %d, err %s\n", bytesRead, err))
+		ensure(bytesRead == len(buffer), fmt.Sprintf("insufficient bytes read %d, error %s\n", bytesRead, err))
 		log.Warnf("CreateRandomBinaryFile: bytesRead=%d\n", bytesRead)
 		bytesWritten, err := file.Write(buffer)
 
-		ensure(bytesWritten == len(buffer), fmt.Sprintf("insufficient bytes written %d, err %s\n", bytesWritten, err))
+		ensure(bytesWritten == len(buffer), fmt.Sprintf("insufficient bytes written %d, error %s\n", bytesWritten, err))
 		log.Warnf("CreateRandomBinaryFile: bytesWritten=%d\n", bytesWritten)
 	}
 	file.Seek(0, 0)
@@ -54,10 +54,10 @@ func CreateRandomBinaryFile(prefix string, size int64) *BinaryFile {
 
 func OpenBinaryFile(path string) *BinaryFile {
 	file, err := os.Open(path)
-	ensure(err == nil, fmt.Sprintf("OpenBinaryFile: cannot create file %s\n", path))
+	ensure(err == nil, fmt.Sprintf("OpenBinaryFile: cannot open file %s, error %s\n", path, err))
 
 	info, err := file.Stat()
-	ensure(err == nil, fmt.Sprintf("OpenBinaryFile: cannot get stats for file %s\n", path))
+	ensure(err == nil, fmt.Sprintf("OpenBinaryFile: cannot stat file %s error %s\n", path, err))
 	ensure(info.Size() >= 0, fmt.Sprintf("OpenBinaryFile: negative size %d file %s\n", info.Size(), path))
 
 	binaryFile := &BinaryFile{
@@ -78,6 +78,5 @@ func (f *BinaryFile) NewReader() *bufio.Reader {
 func (f *BinaryFile) Close() {
 	ensure(f.opened, fmt.Sprintf("Close: file %s is not opened\n", f.path))
 	err := f.file.Close()
-	os.Remove(f.path)
-	ensure(err == nil, fmt.Sprintf("Close: cannot close file %s\n", f.path))
+	ensure(err == nil, fmt.Sprintf("Close: cannot close file %s, error %s\n", f.path, err))
 }

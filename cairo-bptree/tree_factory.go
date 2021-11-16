@@ -49,16 +49,32 @@ func (factory *Tree23BinaryFactory) readUniqueKeyValues(reader *bufio.Reader) []
 		duplicated_keys := 0
 		log.Tracef("BINARY state key_bytes_count: %d\n", key_bytes_count)
 		for i := 0; i < key_bytes_count; i += factory.keySize {
-			key := Felt(binary.BigEndian.Uint64(buffer[i:i+factory.keySize]))
-			log.Debugf("BINARY state key: %d\n", key)
+			key := factory.readKey(buffer, i)
+			log.Tracef("BINARY state key: %d\n", key)
 			if _, duplicated := keyRegistry[key]; duplicated {
 				duplicated_keys++
 				continue
 			}
+			keyRegistry[key] = true
+			log.Debugf("BINARY state unique key: %d\n", key)
 			value := key // Shortcut: value equal to key
 			kvPairs = append(kvPairs, KeyValue{key, value})
 		}
 		log.Tracef("BINARY state duplicated_keys: %d\n", duplicated_keys)
 	}
 	return kvPairs
+}
+
+func (factory *Tree23BinaryFactory) readKey(buffer []byte, offset int) Felt {
+	keySlice := buffer[offset:offset+factory.keySize]
+	switch factory.keySize {
+	case 1:
+		return Felt(keySlice[0])
+	case 2:
+		return Felt(binary.BigEndian.Uint16(keySlice))
+	case 4:
+		return Felt(binary.BigEndian.Uint32(keySlice))
+	default:
+		return Felt(binary.BigEndian.Uint64(keySlice))
+	}
 }

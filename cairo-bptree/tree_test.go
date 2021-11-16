@@ -4,7 +4,10 @@
 package cairo_bptree
 
 import (
+	"bufio"
+	"bytes"
 	"fmt"
+	"sort"
 	"testing"
 
 	log "github.com/sirupsen/logrus"
@@ -18,9 +21,21 @@ func assertTwoThreeTree(t *testing.T, tree *Tree23, expectedKeysPostOrder []Felt
 	}
 }
 
+func assertTwoThreeTree2(t *testing.T, tree *Tree23, expectedKeysLevelOrder []Felt) {
+	assert.True(t, tree.IsTwoThree(), "2-3-tree properties do not hold for tree: %v", tree.WalkKeysPostOrder())
+	if expectedKeysLevelOrder != nil {
+		assert.Equal(t, expectedKeysLevelOrder, tree.KeysInLevelOrder(), "different keys by level")
+	}
+}
+
+type HeightTest struct {
+	initialItems	[]KeyValue
+	expectedHeight	int
+}
+
 type IsTree23Test struct {
 	initialItems		[]KeyValue
-	expectedKeysPostOrder	[]Felt
+	expectedKeysLevelOrder	[]Felt
 }
 
 type UpsertTest struct {
@@ -30,41 +45,63 @@ type UpsertTest struct {
 	finalKeysPostOrder	[]Felt
 }
 
-var isTree23Tests = []IsTree23Test {
-	{[]KeyValue{},							[]Felt{}},
-	{[]KeyValue{{1, 1}},						[]Felt{1}},
-	{[]KeyValue{{1, 1}, {2, 2}},					[]Felt{1, 2}},
-	{[]KeyValue{{1, 1}, {2, 2}, {3, 3}},				[]Felt{1, 2, 3}},
-	{[]KeyValue{{1, 1}, {2, 2}, {3, 3}, {4, 4}},			[]Felt{1, 2, 3, 4}},
-	{[]KeyValue{{1, 1}, {2, 2}, {3, 3}, {4, 4}, {5, 5}},		[]Felt{1, 2, 3, 4, 5}},
-	{[]KeyValue{{0, 0}, {1, 1}, {10, 10}, {100, 100}, {101, 101}},	[]Felt{0, 1, 10, 100, 101}},
+var heightTestTable = []HeightTest {
+	{[]KeyValue{},									0},
+	{[]KeyValue{{1, 1}},								1},
+	{[]KeyValue{{1, 1}, {2, 2}},							1},
+	{[]KeyValue{{1, 1}, {2, 2}, {3, 3}},						2},
+	{[]KeyValue{{1, 1}, {2, 2}, {3, 3}, {4, 4}},					2},
+	{[]KeyValue{{1, 1}, {2, 2}, {3, 3}, {4, 4}, {5, 5}},				2},
+	{[]KeyValue{{1, 1}, {2, 2}, {3, 3}, {4, 4}, {5, 5}, {6, 6}},			2},
+	{[]KeyValue{{1, 1}, {2, 2}, {3, 3}, {4, 4}, {5, 5}, {6, 6}, {7, 7}},		3},
+	{[]KeyValue{{1, 1}, {2, 2}, {3, 3}, {4, 4}, {5, 5}, {6, 6}, {7, 7}, {8, 8}},	3},
 }
 
-var insertTests = []UpsertTest {
+var isTree23TestTable = []IsTree23Test {
+	{[]KeyValue{},								[]Felt{}},
+	{[]KeyValue{{1, 1}},							[]Felt{1}},
+	{[]KeyValue{{1, 1}, {2, 2}},						[]Felt{1, 2}},
+	{[]KeyValue{{1, 1}, {2, 2}, {3, 3}},					[]Felt{3, 1, 2, 3}},
+	{[]KeyValue{{1, 1}, {2, 2}, {3, 3}, {4, 4}},				[]Felt{3, 1, 2, 3, 4}},
+	{[]KeyValue{{1, 1}, {2, 2}, {3, 3}, {4, 4}, {5, 5}},			[]Felt{3, 5, 1, 2, 3, 4, 5}},
+	{[]KeyValue{{1, 1}, {2, 2}, {3, 3}, {4, 4}, {5, 5}, {6, 6}},		[]Felt{3, 5, 1, 2, 3, 4, 5, 6}},
+	{[]KeyValue{{1, 1}, {2, 2}, {3, 3}, {4, 4}, {5, 5}, {6, 6}, {7, 7}},	[]Felt{5, 3, 7, 1, 2, 3, 4, 5, 6, 7}},
+	//{[]KeyValue{{0, 0}, {1, 1}, {10, 10}, {100, 100}, {101, 101}},		[]Felt{0, 1, 10, 100, 101}},
+}
+
+var insertTestTable = []UpsertTest {
 	{[]KeyValue{},					[]Felt{},		[]KeyValue{{0, 0}},				[]Felt{0}},
 	{[]KeyValue{{10, 10}},				[]Felt{10},		[]KeyValue{{0, 0}, {5, 5}},			[]Felt{0, 5, 10}},
 	{[]KeyValue{{10, 10}, {20, 20}},		[]Felt{10, 20},		[]KeyValue{{0, 0}, {5, 5}, {15, 15}},		[]Felt{0, 5, 10, 15, 20}},
 	{[]KeyValue{{10, 10}, {20, 20}, {30, 30}},	[]Felt{10, 20, 30},	[]KeyValue{{0, 0}, {5, 5}, {15, 15}, {25, 25}},	[]Felt{0, 5, 10, 15, 20, 25, 30}},
 }
 
-var updateTests = []UpsertTest {
+var updateTestTable = []UpsertTest {
 	{[]KeyValue{{10, 10}},				[]Felt{10},		[]KeyValue{{10, 100}},			[]Felt{10}},
 	{[]KeyValue{{10, 10}, {20, 20}},		[]Felt{10, 20},		[]KeyValue{{10, 100}, {20, 200}},	[]Felt{10, 20}},
 }
 
 func init() {
-	log.SetLevel(log.WarnLevel)
+	log.SetLevel(log.TraceLevel)
+}
+
+func TestHeight(t *testing.T) {
+	for _, data := range heightTestTable {
+		tree := NewTree23(data.initialItems)
+		assert.Equal(t, data.expectedHeight, tree.Height(), "different height")
+	}
 }
 
 func TestIs23Tree(t *testing.T) {
-	for _, data := range isTree23Tests {
+	for _, data := range isTree23TestTable {
 		tree := NewTree23(data.initialItems)
-		assertTwoThreeTree(t, tree, data.expectedKeysPostOrder)
+		//assertTwoThreeTree(t, tree, data.expectedKeysPostOrder)
+		assertTwoThreeTree2(t, tree, data.expectedKeysLevelOrder)
 	}
 }
 
 func TestUpsertInsert(t *testing.T) {
-	for _, data := range insertTests {
+	for _, data := range insertTestTable {
 		tree := NewTree23(data.initialItems)
 		assertTwoThreeTree(t, tree, data.initialKeysPostOrder)
 		tree.UpsertNoStats(data.deltaItems)
@@ -73,7 +110,7 @@ func TestUpsertInsert(t *testing.T) {
 }
 
 func TestUpsertUpdate(t *testing.T) {
-	for _, data := range updateTests {
+	for _, data := range updateTestTable {
 		tree := NewTree23(data.initialItems)
 		assertTwoThreeTree(t, tree, data.initialKeysPostOrder)
 		tree.UpsertNoStats(data.deltaItems)
@@ -83,11 +120,13 @@ func TestUpsertUpdate(t *testing.T) {
 }
 
 func TestUpsertIdempotent(t *testing.T) {
-	for _, data := range isTree23Tests {
+	for _, data := range isTree23TestTable {
 		tree := NewTree23(data.initialItems)
-		assertTwoThreeTree(t, tree, data.expectedKeysPostOrder)
+		//assertTwoThreeTree(t, tree, data.expectedKeysPostOrder)
+		assertTwoThreeTree2(t, tree, data.expectedKeysLevelOrder)
 		tree.UpsertNoStats(data.initialItems)
-		assertTwoThreeTree(t, tree, data.expectedKeysPostOrder)
+		//assertTwoThreeTree(t, tree, data.expectedKeysPostOrder)
+		assertTwoThreeTree2(t, tree, data.expectedKeysLevelOrder)
 	}
 }
 
@@ -121,4 +160,30 @@ func TestUpsertNextKey(t *testing.T) {
 }
 
 func TestUpsertFirstKey(t *testing.T) {
+}
+
+func FuzzUpsert(f *testing.F) {
+	f.Fuzz(func (t *testing.T, input1, input2 []byte) {
+		//t.Parallel()
+		fmt.Printf("input1=%v input2=%v\n", input1, input2)
+		treeFactory := NewTree23BinaryFactory(1)
+		bytesReader := bytes.NewReader(input1)
+		kvStatePairs := treeFactory.NewUniqueKeyValues(bufio.NewReader(bytesReader))
+		if !sort.IsSorted(KeyValueByKey(kvStatePairs)) {
+			t.Skip()
+		}
+		kvStateChangesPairs := make([]KeyValue, len(input2))
+		for i, b := range input2 {
+			kvStateChangesPairs[i] = KeyValue{Felt(b), Felt(b)}
+		}
+		if !sort.IsSorted(KeyValueByKey(kvStateChangesPairs)) {
+			t.Skip()
+		}
+		tree := NewTree23(kvStatePairs)
+		tree.GraphAndPicture("tree_step1", false)
+		assertTwoThreeTree(t, tree, nil)
+		tree = tree.UpsertNoStats(kvStateChangesPairs)
+		tree.GraphAndPicture("tree_step2", false)
+		assertTwoThreeTree(t, tree, nil)
+	})
 }

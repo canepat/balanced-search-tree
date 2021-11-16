@@ -61,13 +61,13 @@ func makeEmptyLeafNode() (*Node23) {
 }
 
 func internalKeysFromChildren(children []*Node23) []*Felt {
-	ensure(len(children) > 0, "number of children is zero")
+	ensure(len(children) > 1, "number of children is lower than 2")
 	internalKeys := make([]*Felt, 0, len(children)-1)
 	for _, child := range children[:len(children)-1] {
 		ensure(child.nextKey() != nil, "child next key is zero")
-		nextKey := *child.nextKey()
-		internalKeys = append(internalKeys, &nextKey)
+		internalKeys = append(internalKeys, child.nextKey())
 	}
+	log.Tracef("internalKeysFromChildren: children=%v internalKeys=%v\n", children, ptr2pte(internalKeys))
 	return internalKeys
 }
 
@@ -139,6 +139,37 @@ func (n *Node23) setNextKey(nextKey *Felt) {
 	n.keys[len(n.keys)-1] = nextKey
 }
 
+func (n *Node23) canonicalKeys() []Felt {
+	if n.isLeaf {
+		ensure(len(n.keys) > 0, "canonicalKeys: node has no key")
+		return ptr2pte(n.keys[:len(n.keys)-1])
+	} else {
+		return ptr2pte(n.keys[:])
+	}
+}
+
+func (n *Node23) height() int {
+	if n.isLeaf {
+		return 1
+	} else {
+		ensure(len(n.children) > 0, "heigth: internal node has zero children")
+		return n.children[0].height() + 1
+	}
+}
+
+func (n *Node23) keysByLevel(level int) []Felt {
+	if level == 0 {
+		return n.canonicalKeys()
+	} else {
+		levelKeys := make([]Felt, 0)
+		for _, child := range n.children {
+			childLevelKeys := child.keysByLevel(level-1)
+			levelKeys = append(levelKeys, childLevelKeys...)
+		}
+		return levelKeys
+	}
+}
+
 type Walker func(*Node23) interface{}
 
 func (n *Node23) walkPostOrder(w Walker) []interface{} {
@@ -196,7 +227,7 @@ func (n *Node23) upsertLeaf(kvItems []KeyValue, stats *Stats) (promoted []*Node2
 		newFirstKey = nil
 	}
 
-	log.Tracef("upsertLeaf: keyCount=%d firstKey=%d\n", n.keyCount(), newFirstKey)
+	log.Tracef("upsertLeaf: keyCount=%d firstKey=%d\n", n.keyCount(), *n.firstKey())
 	if n.keyCount() > 3 {
 		nodes := make([]*Node23, 0)
 		for n.keyCount() > 3 {
@@ -273,20 +304,23 @@ func (n *Node23) addOrReplaceKeys(kvItems []KeyValue) {
 	ensure(n.isLeaf, "addOrReplaceKeys: node is not leaf")
 	ensure(len(n.keys) > 0 && len(n.values) > 0, "addOrReplaceKeys: node keys/values are not empty")
 	ensure(len(kvItems) > 0, "addOrReplaceKeys: kvItems is not empty")
-	log.Debugf("addOrReplaceKeys: keys=%v-%v values=%v-%v kvItems=%v\n", ptr2pte(n.keys), n.keys, ptr2pte(n.values), n.values, kvItems)
+	log.Debugf("addOrReplaceKeys: keys=%v-%v values=%v-%v #kvItems=%d\n", ptr2pte(n.keys), n.keys, ptr2pte(n.values), n.values, len(kvItems))
 	
 	nextKey, nextValue := n.nextKey(), n.nextValue()
 	log.Tracef("addOrReplaceKeys: nextKey=%p nextValue=%p\n", nextKey, nextValue)
 
 	n.keys = n.keys[:len(n.keys)-1]
 	n.values = n.values[:len(n.values)-1]
-	log.Tracef("addOrReplaceKeys: keys=%v-%v values=%v-%v\n", ptr2pte(n.keys), n.keys, ptr2pte(n.values), n.values)
+	log.Tracef("addOrReplaceKeys: keys=%v-%v values=%v-%v kvItems=%v\n", ptr2pte(n.keys), n.keys, ptr2pte(n.values), n.values, kvItems)
 
+	// TODO: change algorithm
+	// kvItems are ordered by key, search there using n.keys that are 1 or 2 by design, insert n.keys[] if not already present
+	// change kvItems to KeyValues struct composed by keys []Felt, values []Felt
 	for _, kvPair := range kvItems {
 		key, value := kvPair.key, kvPair.value
 		keyFound := false
 		for i, nKey := range n.keys {
-			ensure(nKey != nil, fmt.Sprintf("addOrReplaceKeys: key[%d] is nil in %s", i, n))
+			ensure(nKey != nil, fmt.Sprintf("addOrReplaceKeys: key[%d] is nil in %p", i, n))
 			log.Tracef("addOrReplaceKeys: key=%d values=%d nKey=%d\n", key, value, *nKey)
 			if *nKey == key {
 				keyFound = true

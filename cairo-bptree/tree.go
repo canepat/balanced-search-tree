@@ -17,8 +17,10 @@ func NewEmptyTree23() *Tree23 {
 }
 
 func NewTree23(kvItems []KeyValue) *Tree23 {
+	log.Infof("NewTree23: creating tree with #kvItems=%v\n", len(kvItems))
 	tree := new(Tree23).Upsert(kvItems, &Stats{})
 	tree.reset()
+	log.Infof("NewTree23: created tree root=%s with #kvItems=%v\n", tree.root, len(kvItems))
 	return tree
 }
 
@@ -61,6 +63,24 @@ func (t *Tree23) GraphAndPicture(filename string, debug bool) error {
 	return graph.saveDotAndPicture(filename, debug)
 }
 
+func (t *Tree23) Height() int {
+	if t.root == nil {
+		return 0
+	}
+	return t.root.height()
+}
+
+func (t *Tree23) KeysInLevelOrder() []Felt {
+	if t.root == nil {
+		return []Felt{}
+	}
+	keysByLevel := make([]Felt, 0)
+	for i := 0; i < t.root.height(); i++ {
+		keysByLevel = append(keysByLevel, t.root.keysByLevel(i)...)
+	}
+	return keysByLevel
+}
+
 func (t *Tree23) WalkPostOrder(w Walker) []interface{} {
 	if t.root == nil {
 		return make([]interface{}, 0)
@@ -72,13 +92,13 @@ func (t *Tree23) WalkKeysPostOrder() []Felt {
 	key_pointers := make([]*Felt, 0)
 	t.WalkPostOrder(func(n *Node23) interface{} {
 		if n.isLeaf && n.keyCount() > 0 {
-			log.Tracef("WalkKeysInOrder: L n=%p n.keys=%v\n", n, n.keys)
+			log.Tracef("WalkKeysPostOrder: L n=%p n.keys=%v\n", n, n.keys)
 			key_pointers = append(key_pointers, n.keys[:len(n.keys)-1]...)
 		}
 		return nil
 	})
 	keys := ptr2pte(key_pointers)
-	log.Tracef("WalkKeysInOrder: keys=%v\n", keys)
+	log.Tracef("WalkKeysPostOrder: keys=%v\n", keys)
 	return keys
 }
 
@@ -87,7 +107,7 @@ func (t *Tree23) UpsertNoStats(kvItems []KeyValue) *Tree23 {
 }
 
 func (t *Tree23) Upsert(kvItems []KeyValue, stats *Stats) *Tree23 {
-	log.Tracef("Upsert: t=%p root=%p kvItems=%v\n", t, t.root, kvItems)
+	log.Debugf("Upsert: t=%p root=%p kvItems=%v\n", t, t.root, kvItems)
 	nodes, _ := t.root.upsert(kvItems, stats)
 	log.Tracef("Upsert: nodes=%v\n", nodes)
 	ensure(len(nodes) > 0, "nodes length is zero")
@@ -96,30 +116,39 @@ func (t *Tree23) Upsert(kvItems []KeyValue, stats *Stats) *Tree23 {
 	} else {
 		t.root = t.promote(nodes)
 	}
-	log.Tracef("Upsert: t=%p root=%p\n", t, t.root)
+	log.Debugf("Upsert: t=%p root=%p\n", t, t.root)
 	return t
 }
 
 func (t *Tree23) promote(nodes []*Node23) *Node23 {
-	log.Debugf("promote: nodes=%v\n", nodes)
+	log.Debugf("promote: #nodes=%d nodes=%v\n", len(nodes), nodes)
 	numberOfGroups := len(nodes) / 3
 	if len(nodes) % 3 > 0 {
 		numberOfGroups++
 	}
+	ensure(numberOfGroups > 0, "number of groups is zero")
 	log.Tracef("promote: numberOfGroups=%d\n", numberOfGroups)
+	remainingChildrenCount := len(nodes)
 	upperNodes := make([]*Node23, 0)
-	for i := 0; i < numberOfGroups; i++ {
-		firstChildIndex, secondChildIndex, thirdChildIndex := i*3, i*3+1, i*3+2
+	for i := numberOfGroups-1; i >= 0; i-- {
+		log.Debugf("promote: i=%d\n", i)
 		childNodes := make([]*Node23, 0)
-		childNodes = append(childNodes, nodes[firstChildIndex])
-		if secondChildIndex < len(nodes) {
-			childNodes = append(childNodes, nodes[secondChildIndex])
+		if remainingChildrenCount > 4 {
+			log.Debugf("promote: i*3=%d i*3+1=%d i*3+2=%d\n", i*3, i*3+1, i*3+2)
+			childNodes = append(childNodes, nodes[i*3], nodes[i*3+1], nodes[i*3+2])
+			remainingChildrenCount-=3
+		} else if remainingChildrenCount % 2 == 0 { /* 4 or 2 */
+			log.Debugf("promote: i*2=%d i*2+1=%d\n", i*2, i*2+1)
+			childNodes = append(childNodes, nodes[i*2], nodes[i*2+1])
+			remainingChildrenCount-=2
+		} else { /* 3 */
+			log.Debugf("promote: i*3=%d i*3+1=%d i*3+2=%d\n", i*3, i*3+1, i*3+2)
+			childNodes = append(childNodes, nodes[i*3], nodes[i*3+1], nodes[i*3+2])
+			remainingChildrenCount-=3
 		}
-		if thirdChildIndex < len(nodes) {
-			childNodes = append(childNodes, nodes[thirdChildIndex])
-		}
-		upperNodes = append(upperNodes, makeInternalNode(childNodes))
+		upperNodes = append([]*Node23{makeInternalNode(childNodes)}, upperNodes...)
 	}
+	ensure(remainingChildrenCount == 0, "remainingChildrenCount is not zero")
 	ensure(len(upperNodes) > 0, "upperNodes length is zero")
 	if len(upperNodes) == 1 {
 		log.Debugf("promote: root=%s\n", upperNodes[0])

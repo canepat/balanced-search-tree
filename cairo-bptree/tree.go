@@ -119,34 +119,10 @@ func (t *Tree23) Upsert(kvItems []KeyValue, stats *Stats) *Tree23 {
 	if len(promoted) == 1 {
 		t.root = promoted[0]
 	} else {
-		t.root = t.promote(promoted)
+		t.root = promote(promoted)
 	}
 	log.Debugf("Upsert: t=%p root=%p\n", t, t.root)
 	return t
-}
-
-func (t *Tree23) promote(nodes []*Node23) *Node23 {
-	log.Debugf("promote: #nodes=%d nodes=%v\n", len(nodes), nodes)
-	promotedRoot := makeInternalNode(nodes)
-	log.Debugf("promote: promotedRoot=%s\n", promotedRoot)
-	if promotedRoot.keyCount() > 2 {
-		intermediateNodes := make([]*Node23, 0)
-		promotedKeys := make([]*Felt, 0)
-		for promotedRoot.keyCount() > 2 {
-			intermediateNodes = append(intermediateNodes, makeInternalNode(promotedRoot.children[:2]))
-			promotedRoot.children = promotedRoot.children[2:]
-			promotedKeys = append(promotedKeys, promotedRoot.keys[1])
-			promotedRoot.keys = promotedRoot.keys[2:]
-		}
-		intermediateNodes = append(intermediateNodes, makeInternalNode(promotedRoot.children[:]))
-		promotedRoot.children = intermediateNodes
-		promotedRoot.keys = promotedKeys
-		log.Debugf("promote: #keys>2 promotedRoot=%s\n", promotedRoot)
-		return promotedRoot
-	} else {
-		log.Debugf("promote: #keys<=2 promotedRoot=%s\n", promotedRoot)
-		return promotedRoot
-	}
 }
 
 func (t *Tree23) reset() {

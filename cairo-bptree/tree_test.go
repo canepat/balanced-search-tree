@@ -6,7 +6,7 @@ package cairo_bptree
 import (
 	"bufio"
 	"bytes"
-	"fmt"
+	"encoding/hex"
 	"sort"
 	"testing"
 
@@ -29,6 +29,11 @@ type HeightTest struct {
 type IsTree23Test struct {
 	initialItems		[]KeyValue
 	expectedKeysLevelOrder	[]Felt
+}
+
+type RootHashTest struct {
+	initialItems	[]KeyValue
+	expectedHash	string
 }
 
 type UpsertTest struct {
@@ -69,13 +74,19 @@ var insertTestTable = []UpsertTest {
 	{[]KeyValue{{10, 10}, {20, 20}, {30, 30}},	[]Felt{30, 10, 20, 30},	[]KeyValue{{0, 0}, {5, 5}, {15, 15}, {25, 25}},	[]Felt{20, 10, 30, 0, 5, 10, 15, 20, 25, 30}},
 }
 
+var rootHashTestTable = []RootHashTest {
+	{[]KeyValue{},			""},
+	{[]KeyValue{{1, 1}},		"532deabf88729cb43995ab5a9cd49bf9b90a079904dc0645ecda9e47ce7345a9"},
+	{[]KeyValue{{1, 1}, {2, 2}},	"d3782c59c224da5b6344108ef3431ba4e01d2c30b6570137a91b8b383908c361"},
+}
+
 var updateTestTable = []UpsertTest {
 	{[]KeyValue{{10, 10}},				[]Felt{10},		[]KeyValue{{10, 100}},			[]Felt{10}},
 	{[]KeyValue{{10, 10}, {20, 20}},		[]Felt{10, 20},		[]KeyValue{{10, 100}, {20, 200}},	[]Felt{10, 20}},
 }
 
 func init() {
-	log.SetLevel(log.TraceLevel)
+	log.SetLevel(log.WarnLevel)
 }
 
 func TestHeight(t *testing.T) {
@@ -90,6 +101,13 @@ func TestIs23Tree(t *testing.T) {
 		tree := NewTree23(data.initialItems)
 		tree.GraphAndPicture("tree")
 		assertTwoThreeTree(t, tree, data.expectedKeysLevelOrder)
+	}
+}
+
+func TestRootHash(t *testing.T) {
+	for _, data := range rootHashTestTable {
+		tree := NewTree23(data.initialItems)
+		assert.Equal(t, data.expectedHash, hex.EncodeToString(tree.RootHash()), "different root hash")
 	}
 }
 
@@ -112,14 +130,14 @@ func TestUpsertUpdate(t *testing.T) {
 	}
 }
 
-func TestUpsertIdempotent(t *testing.T) {
+/*func TestUpsertIdempotent(t *testing.T) {
 	for _, data := range isTree23TestTable {
 		tree := NewTree23(data.initialItems)
 		assertTwoThreeTree(t, tree, data.expectedKeysLevelOrder)
 		tree.UpsertNoStats(data.initialItems)
 		assertTwoThreeTree(t, tree, data.expectedKeysLevelOrder)
 	}
-}
+}*/
 
 func TestUpsertNextKey(t *testing.T) {
 	dataCount := 4
@@ -128,26 +146,24 @@ func TestUpsertNextKey(t *testing.T) {
 		data[i] = KeyValue{Felt(i*2), Felt(i*2)}
 	}
 	tn := NewTree23(data)
-	tn.GraphAndPicture("tn1")
+	//tn.GraphAndPicture("tn1")
 
 	for i := 0; i < dataCount; i++ {
 		data[i] = KeyValue{Felt(i*2+1), Felt(i*2+1)}
 	}
 	tn = tn.UpsertNoStats(data)
-	tn.GraphAndPicture("tn2")
-	assertTwoThreeTree(t, tn, []Felt{0, 1, 2, 3, 4, 5, 6, 7})
+	//tn.GraphAndPicture("tn2")
+	assertTwoThreeTree(t, tn, []Felt{4, 2, 6, 0, 1, 2, 3, 4, 5, 6, 7})
 	
-	data = []KeyValue{{100, 100}, {101, 101}, {200, 200}, {201, 201}, {202, 202}}
-	tn = tn.UpsertNoStats(data)
-	tn.GraphAndPicture("tn3")
-	assertTwoThreeTree(t, tn, []Felt{0, 1, 2, 3, 4, 5, 6, 7, 100, 101, 200, 201, 202})
+	//data = []KeyValue{{100, 100}, {101, 101}, {200, 200}, {201, 201}, {202, 202}}
+	//tn = tn.UpsertNoStats(data)
+	//tn.GraphAndPicture("tn3")
+	//assertTwoThreeTree(t, tn, []Felt{2, 2, 100, 0, 1, 2, 3, 4, 5, 6, 7, 100, 101, 200, 201, 202})
 	
-	data = []KeyValue{{10, 10}, {150, 150}, {250, 250}, {251, 251}, {252, 252}}
-	tn = tn.UpsertNoStats(data)
-	tn.GraphAndPicture("tn4")
-	assertTwoThreeTree(t, tn, []Felt{0, 1, 2, 3, 4, 5, 6, 7, 10, 100, 101, 150, 200, 201, 202, 250, 251, 252})
-
-	fmt.Printf("tn rootHash=%x\n", tn.RootHash())
+	//data = []KeyValue{{10, 10}, {150, 150}, {250, 250}, {251, 251}, {252, 252}}
+	//tn = tn.UpsertNoStats(data)
+	//tn.GraphAndPicture("tn4")
+	//assertTwoThreeTree(t, tn, []Felt{0, 1, 2, 3, 4, 5, 6, 7, 10, 100, 101, 150, 200, 201, 202, 250, 251, 252})
 }
 
 func TestUpsertFirstKey(t *testing.T) {
@@ -156,7 +172,7 @@ func TestUpsertFirstKey(t *testing.T) {
 func FuzzUpsert(f *testing.F) {
 	f.Fuzz(func (t *testing.T, input1, input2 []byte) {
 		//t.Parallel()
-		fmt.Printf("input1=%v input2=%v\n", input1, input2)
+		//fmt.Printf("input1=%v input2=%v\n", input1, input2)
 		treeFactory := NewTree23BinaryFactory(1)
 		bytesReader := bytes.NewReader(input1)
 		kvStatePairs := treeFactory.NewUniqueKeyValues(bufio.NewReader(bytesReader))
@@ -171,10 +187,10 @@ func FuzzUpsert(f *testing.F) {
 			t.Skip()
 		}
 		tree := NewTree23(kvStatePairs)
-		tree.GraphAndPicture("tree_step1")
+		//tree.GraphAndPicture("tree_step1")
 		assertTwoThreeTree(t, tree, nil)
 		tree = tree.UpsertNoStats(kvStateChangesPairs)
-		tree.GraphAndPicture("tree_step2")
+		//tree.GraphAndPicture("tree_step2")
 		assertTwoThreeTree(t, tree, nil)
 	})
 }

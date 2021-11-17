@@ -71,6 +71,30 @@ func internalKeysFromChildren(children []*Node23) []*Felt {
 	return internalKeys
 }
 
+func promote(nodes []*Node23) *Node23 {
+	log.Debugf("promote: #nodes=%d nodes=%v\n", len(nodes), nodes)
+	promotedRoot := makeInternalNode(nodes)
+	log.Debugf("promote: promotedRoot=%s\n", promotedRoot)
+	if promotedRoot.keyCount() > 2 {
+		intermediateNodes := make([]*Node23, 0)
+		promotedKeys := make([]*Felt, 0)
+		for promotedRoot.keyCount() > 2 {
+			intermediateNodes = append(intermediateNodes, makeInternalNode(promotedRoot.children[:2]))
+			promotedRoot.children = promotedRoot.children[2:]
+			promotedKeys = append(promotedKeys, promotedRoot.keys[1])
+			promotedRoot.keys = promotedRoot.keys[2:]
+		}
+		intermediateNodes = append(intermediateNodes, makeInternalNode(promotedRoot.children[:]))
+		promotedRoot.children = intermediateNodes
+		promotedRoot.keys = promotedKeys
+		log.Debugf("promote: #keys>2 promotedRoot=%s\n", promotedRoot)
+		return promotedRoot
+	} else {
+		log.Debugf("promote: #keys<=2 promotedRoot=%s\n", promotedRoot)
+		return promotedRoot
+	}
+}
+
 func (n *Node23) reset() {
 	if n.isLeaf {
 		n.exposed = false

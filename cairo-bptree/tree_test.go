@@ -14,14 +14,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func assertTwoThreeTree(t *testing.T, tree *Tree23, expectedKeysPostOrder []Felt) {
-	assert.True(t, tree.IsTwoThree(), "2-3-tree properties do not hold for tree: %v", tree.WalkKeysPostOrder())
-	if expectedKeysPostOrder != nil {
-		assert.Equal(t, expectedKeysPostOrder, tree.WalkKeysPostOrder(), "different post-order keys: %v", tree.WalkKeysPostOrder())
-	}
-}
-
-func assertTwoThreeTree2(t *testing.T, tree *Tree23, expectedKeysLevelOrder []Felt) {
+func assertTwoThreeTree(t *testing.T, tree *Tree23, expectedKeysLevelOrder []Felt) {
 	assert.True(t, tree.IsTwoThree(), "2-3-tree properties do not hold for tree: %v", tree.WalkKeysPostOrder())
 	if expectedKeysLevelOrder != nil {
 		assert.Equal(t, expectedKeysLevelOrder, tree.KeysInLevelOrder(), "different keys by level")
@@ -66,14 +59,14 @@ var isTree23TestTable = []IsTree23Test {
 	{[]KeyValue{{1, 1}, {2, 2}, {3, 3}, {4, 4}, {5, 5}},			[]Felt{3, 5, 1, 2, 3, 4, 5}},
 	{[]KeyValue{{1, 1}, {2, 2}, {3, 3}, {4, 4}, {5, 5}, {6, 6}},		[]Felt{3, 5, 1, 2, 3, 4, 5, 6}},
 	{[]KeyValue{{1, 1}, {2, 2}, {3, 3}, {4, 4}, {5, 5}, {6, 6}, {7, 7}},	[]Felt{5, 3, 7, 1, 2, 3, 4, 5, 6, 7}},
-	//{[]KeyValue{{0, 0}, {1, 1}, {10, 10}, {100, 100}, {101, 101}},		[]Felt{0, 1, 10, 100, 101}},
+	{[]KeyValue{{0, 0}, {1, 1}, {10, 10}, {100, 100}, {101, 101}},		[]Felt{10, 101, 0, 1, 10, 100, 101}},
 }
 
 var insertTestTable = []UpsertTest {
 	{[]KeyValue{},					[]Felt{},		[]KeyValue{{0, 0}},				[]Felt{0}},
-	{[]KeyValue{{10, 10}},				[]Felt{10},		[]KeyValue{{0, 0}, {5, 5}},			[]Felt{0, 5, 10}},
-	{[]KeyValue{{10, 10}, {20, 20}},		[]Felt{10, 20},		[]KeyValue{{0, 0}, {5, 5}, {15, 15}},		[]Felt{0, 5, 10, 15, 20}},
-	{[]KeyValue{{10, 10}, {20, 20}, {30, 30}},	[]Felt{10, 20, 30},	[]KeyValue{{0, 0}, {5, 5}, {15, 15}, {25, 25}},	[]Felt{0, 5, 10, 15, 20, 25, 30}},
+	{[]KeyValue{{10, 10}},				[]Felt{10},		[]KeyValue{{0, 0}, {5, 5}},			[]Felt{10, 0, 5, 10}},
+	{[]KeyValue{{10, 10}, {20, 20}},		[]Felt{10, 20},		[]KeyValue{{0, 0}, {5, 5}, {15, 15}},		[]Felt{10, 20, 0, 5, 10, 15, 20}},
+	{[]KeyValue{{10, 10}, {20, 20}, {30, 30}},	[]Felt{30, 10, 20, 30},	[]KeyValue{{0, 0}, {5, 5}, {15, 15}, {25, 25}},	[]Felt{20, 10, 30, 0, 5, 10, 15, 20, 25, 30}},
 }
 
 var updateTestTable = []UpsertTest {
@@ -96,8 +89,7 @@ func TestIs23Tree(t *testing.T) {
 	for _, data := range isTree23TestTable {
 		tree := NewTree23(data.initialItems)
 		tree.GraphAndPicture("tree")
-		//assertTwoThreeTree(t, tree, data.expectedKeysPostOrder)
-		assertTwoThreeTree2(t, tree, data.expectedKeysLevelOrder)
+		assertTwoThreeTree(t, tree, data.expectedKeysLevelOrder)
 	}
 }
 
@@ -123,11 +115,9 @@ func TestUpsertUpdate(t *testing.T) {
 func TestUpsertIdempotent(t *testing.T) {
 	for _, data := range isTree23TestTable {
 		tree := NewTree23(data.initialItems)
-		//assertTwoThreeTree(t, tree, data.expectedKeysPostOrder)
-		assertTwoThreeTree2(t, tree, data.expectedKeysLevelOrder)
+		assertTwoThreeTree(t, tree, data.expectedKeysLevelOrder)
 		tree.UpsertNoStats(data.initialItems)
-		//assertTwoThreeTree(t, tree, data.expectedKeysPostOrder)
-		assertTwoThreeTree2(t, tree, data.expectedKeysLevelOrder)
+		assertTwoThreeTree(t, tree, data.expectedKeysLevelOrder)
 	}
 }
 

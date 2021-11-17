@@ -287,14 +287,18 @@ func (n *Node23) upsertInternal(kvItems []KeyValue, stats *Stats) (promoted []*N
 	n.children = innerPromotedNodes
 	n.keys = internalKeysFromChildren(n.children)
 	log.Tracef("upsertInternal: n=%s newFirstKey=%s\n", n, pointerValue(newFirstKey))
-	nodes := make([]*Node23, 0)
 	if n.childrenCount() > 3 {
+		nodes := make([]*Node23, 0)
+		promotedKeys := make([]*Felt, 0)
 		for n.childrenCount() > 3 {
 			nodes = append(nodes, makeInternalNode(n.children[:2]))
 			n.children = n.children[2:]
+			promotedKeys = append(promotedKeys, n.keys[1])
 		}
 		nodes = append(nodes, makeInternalNode(n.children[:]))
-		return nodes, newFirstKey
+		n.children = nodes
+		n.keys = promotedKeys
+		return []*Node23{n}, newFirstKey
 	} else {
 		return []*Node23{n}, newFirstKey
 	}
@@ -321,7 +325,7 @@ func (n *Node23) addOrReplaceKeys(kvItems []KeyValue) {
 		keyFound := false
 		for i, nKey := range n.keys {
 			ensure(nKey != nil, fmt.Sprintf("addOrReplaceKeys: key[%d] is nil in %p", i, n))
-			log.Tracef("addOrReplaceKeys: key=%d values=%d nKey=%d\n", key, value, *nKey)
+			log.Tracef("addOrReplaceKeys: key=%d value=%d nKey=%d\n", key, value, *nKey)
 			if *nKey == key {
 				keyFound = true
 				n.values[i] = &value

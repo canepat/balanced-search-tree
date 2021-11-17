@@ -1,8 +1,6 @@
 package cairo_bptree
 
 import (
-	"fmt"
-
 	log "github.com/sirupsen/logrus"
 )
 
@@ -115,35 +113,39 @@ func (t *Tree23) UpsertNoStats(kvItems []KeyValue) *Tree23 {
 
 func (t *Tree23) Upsert(kvItems []KeyValue, stats *Stats) *Tree23 {
 	log.Debugf("Upsert: t=%p root=%p kvItems=%v\n", t, t.root, kvItems)
-	nodes, _ := t.root.upsert(kvItems, stats)
-	log.Tracef("Upsert: nodes=%v\n", nodes)
-	ensure(len(nodes) > 0, "nodes length is zero")
-	if len(nodes) == 1 {
-		t.root = nodes[0]
-	} else {
-		promoted := t.promote(nodes)
-		ensure(len(promoted) == 1, fmt.Sprintf("invalid promoted length: %d", len(promoted)))
+	promoted, _ := t.root.upsert(kvItems, stats)
+	log.Tracef("Upsert: promoted=%v\n", promoted)
+	ensure(len(promoted) > 0, "nodes length is zero")
+	if len(promoted) == 1 {
 		t.root = promoted[0]
+	} else {
+		t.root = t.promote(promoted)
 	}
 	log.Debugf("Upsert: t=%p root=%p\n", t, t.root)
 	return t
 }
 
-func (t *Tree23) promote(nodes []*Node23) []*Node23 {
+func (t *Tree23) promote(nodes []*Node23) *Node23 {
 	log.Debugf("promote: #nodes=%d nodes=%v\n", len(nodes), nodes)
-	upwards := make([]*Node23, 0)
-	if len(nodes) > 3 {
-		for len(nodes) > 3 {
-			upwards = append(upwards, makeInternalNode(nodes[:2]))
-			nodes = nodes[2:]
+	promotedRoot := makeInternalNode(nodes)
+	log.Debugf("promote: promotedRoot=%s\n", promotedRoot)
+	if promotedRoot.keyCount() > 2 {
+		intermediateNodes := make([]*Node23, 0)
+		promotedKeys := make([]*Felt, 0)
+		for promotedRoot.keyCount() > 2 {
+			intermediateNodes = append(intermediateNodes, makeInternalNode(promotedRoot.children[:2]))
+			promotedRoot.children = promotedRoot.children[2:]
+			promotedKeys = append(promotedKeys, promotedRoot.keys[1])
+			promotedRoot.keys = promotedRoot.keys[2:]
 		}
-		upwards = append(upwards, makeInternalNode(nodes[:]))
-		log.Debugf("promote: >3 #upwards=%d upwards=%v\n", len(upwards), upwards)
-		return t.promote(upwards)
+		intermediateNodes = append(intermediateNodes, makeInternalNode(promotedRoot.children[:]))
+		promotedRoot.children = intermediateNodes
+		promotedRoot.keys = promotedKeys
+		log.Debugf("promote: #keys>2 promotedRoot=%s\n", promotedRoot)
+		return promotedRoot
 	} else {
-		upwards = append(upwards, makeInternalNode(nodes))
-		log.Debugf("promote: 2/3 #upwards=%d upwards=%v\n", len(upwards), upwards)
-		return upwards
+		log.Debugf("promote: #keys<=2 promotedRoot=%s\n", promotedRoot)
+		return promotedRoot
 	}
 }
 

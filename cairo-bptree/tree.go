@@ -113,7 +113,7 @@ func (t *Tree23) UpsertNoStats(kvItems []KeyValue) *Tree23 {
 
 func (t *Tree23) Upsert(kvItems []KeyValue, stats *Stats) *Tree23 {
 	log.Debugf("Upsert: t=%p root=%p kvItems=%v\n", t, t.root, kvItems)
-	promoted, _ := t.root.upsert(kvItems, stats)
+	promoted, _ := upsert(t.root, kvItems, stats)
 	log.Tracef("Upsert: promoted=%v\n", promoted)
 	ensure(len(promoted) > 0, "nodes length is zero")
 	if len(promoted) == 1 {
@@ -122,6 +122,20 @@ func (t *Tree23) Upsert(kvItems []KeyValue, stats *Stats) *Tree23 {
 		t.root = promote(promoted)
 	}
 	log.Debugf("Upsert: t=%p root=%p\n", t, t.root)
+	return t
+}
+
+func (t *Tree23) DeleteNoStats(keyToDelete []Felt) *Tree23 {
+	return t.Delete(keyToDelete, &Stats{})
+}
+
+func (t *Tree23) Delete(keyToDelete []Felt, stats *Stats) *Tree23 {
+	log.Debugf("Delete: t=%p root=%p keyToDelete=%v\n", t, t.root, keyToDelete)
+	newRoot, nextKey := delete(t.root, keyToDelete, stats)
+	t.root = newRoot
+	if nextKey != nil {
+		updateNextKey(t.root, nextKey)
+	}
 	return t
 }
 

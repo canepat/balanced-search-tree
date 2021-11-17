@@ -38,9 +38,16 @@ type RootHashTest struct {
 
 type UpsertTest struct {
 	initialItems		[]KeyValue
-	initialKeysPostOrder	[]Felt
+	initialKeysLevelOrder	[]Felt
 	deltaItems		[]KeyValue
-	finalKeysPostOrder	[]Felt
+	finalKeysLevelOrder	[]Felt
+}
+
+type DeleteTest struct {
+	initialItems		[]KeyValue
+	initialKeysLevelOrder	[]Felt
+	keysToDelete		[]Felt
+	finalKeysLevelOrder	[]Felt
 }
 
 var heightTestTable = []HeightTest {
@@ -85,6 +92,12 @@ var updateTestTable = []UpsertTest {
 	{[]KeyValue{{10, 10}, {20, 20}},		[]Felt{10, 20},		[]KeyValue{{10, 100}, {20, 200}},	[]Felt{10, 20}},
 }
 
+var deleteTestTable = []DeleteTest {
+	{[]KeyValue{{1, 1}},			[]Felt{1},		[]Felt{1},			[]Felt{}},
+	{[]KeyValue{{1, 1}, {2, 2}},		[]Felt{1, 2},		[]Felt{2},			[]Felt{1}},
+	//{[]KeyValue{{1, 1}, {2, 2}, {3, 3}},	[]Felt{3, 1, 2, 3},	[]Felt{2},			[]Felt{1, 3}},
+}
+
 func init() {
 	log.SetLevel(log.WarnLevel)
 }
@@ -114,18 +127,18 @@ func TestRootHash(t *testing.T) {
 func TestUpsertInsert(t *testing.T) {
 	for _, data := range insertTestTable {
 		tree := NewTree23(data.initialItems)
-		assertTwoThreeTree(t, tree, data.initialKeysPostOrder)
+		assertTwoThreeTree(t, tree, data.initialKeysLevelOrder)
 		tree.UpsertNoStats(data.deltaItems)
-		assertTwoThreeTree(t, tree, data.finalKeysPostOrder)
+		assertTwoThreeTree(t, tree, data.finalKeysLevelOrder)
 	}
 }
 
 func TestUpsertUpdate(t *testing.T) {
 	for _, data := range updateTestTable {
 		tree := NewTree23(data.initialItems)
-		assertTwoThreeTree(t, tree, data.initialKeysPostOrder)
+		assertTwoThreeTree(t, tree, data.initialKeysLevelOrder)
 		tree.UpsertNoStats(data.deltaItems)
-		assertTwoThreeTree(t, tree, data.finalKeysPostOrder)
+		assertTwoThreeTree(t, tree, data.finalKeysLevelOrder)
 		// TODO: add check for new values
 	}
 }
@@ -167,6 +180,15 @@ func TestUpsertNextKey(t *testing.T) {
 }
 
 func TestUpsertFirstKey(t *testing.T) {
+}
+
+func TestDelete(t *testing.T) {
+	for _, data := range deleteTestTable {
+		tree := NewTree23(data.initialItems)
+		assertTwoThreeTree(t, tree, data.initialKeysLevelOrder)
+		tree.DeleteNoStats(data.keysToDelete)
+		assertTwoThreeTree(t, tree, data.finalKeysLevelOrder)
+	}
 }
 
 func FuzzUpsert(f *testing.F) {

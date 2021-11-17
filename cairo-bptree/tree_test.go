@@ -95,6 +95,7 @@ func TestHeight(t *testing.T) {
 func TestIs23Tree(t *testing.T) {
 	for _, data := range isTree23TestTable {
 		tree := NewTree23(data.initialItems)
+		tree.GraphAndPicture("tree")
 		//assertTwoThreeTree(t, tree, data.expectedKeysPostOrder)
 		assertTwoThreeTree2(t, tree, data.expectedKeysLevelOrder)
 	}
@@ -137,23 +138,23 @@ func TestUpsertNextKey(t *testing.T) {
 		data[i] = KeyValue{Felt(i*2), Felt(i*2)}
 	}
 	tn := NewTree23(data)
-	tn.GraphAndPicture("tn1", false)
+	tn.GraphAndPicture("tn1")
 
 	for i := 0; i < dataCount; i++ {
 		data[i] = KeyValue{Felt(i*2+1), Felt(i*2+1)}
 	}
 	tn = tn.UpsertNoStats(data)
-	tn.GraphAndPicture("tn2", false)
+	tn.GraphAndPicture("tn2")
 	assertTwoThreeTree(t, tn, []Felt{0, 1, 2, 3, 4, 5, 6, 7})
 	
 	data = []KeyValue{{100, 100}, {101, 101}, {200, 200}, {201, 201}, {202, 202}}
 	tn = tn.UpsertNoStats(data)
-	tn.GraphAndPicture("tn3", false)
+	tn.GraphAndPicture("tn3")
 	assertTwoThreeTree(t, tn, []Felt{0, 1, 2, 3, 4, 5, 6, 7, 100, 101, 200, 201, 202})
 	
 	data = []KeyValue{{10, 10}, {150, 150}, {250, 250}, {251, 251}, {252, 252}}
 	tn = tn.UpsertNoStats(data)
-	tn.GraphAndPicture("tn4", false)
+	tn.GraphAndPicture("tn4")
 	assertTwoThreeTree(t, tn, []Felt{0, 1, 2, 3, 4, 5, 6, 7, 10, 100, 101, 150, 200, 201, 202, 250, 251, 252})
 
 	fmt.Printf("tn rootHash=%x\n", tn.RootHash())
@@ -180,10 +181,10 @@ func FuzzUpsert(f *testing.F) {
 			t.Skip()
 		}
 		tree := NewTree23(kvStatePairs)
-		tree.GraphAndPicture("tree_step1", false)
+		tree.GraphAndPicture("tree_step1")
 		assertTwoThreeTree(t, tree, nil)
 		tree = tree.UpsertNoStats(kvStateChangesPairs)
-		tree.GraphAndPicture("tree_step2", false)
+		tree.GraphAndPicture("tree_step2")
 		assertTwoThreeTree(t, tree, nil)
 	})
 }

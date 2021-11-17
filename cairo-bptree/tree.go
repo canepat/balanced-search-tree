@@ -1,6 +1,8 @@
 package cairo_bptree
 
 import (
+	"fmt"
+
 	log "github.com/sirupsen/logrus"
 )
 
@@ -58,9 +60,14 @@ func (t *Tree23) Graph(filename string, debug bool) {
 	graph.saveDot(filename, debug)
 }
 
-func (t *Tree23) GraphAndPicture(filename string, debug bool) error {
+func (t *Tree23) GraphAndPicture(filename string) error {
 	graph := NewGraph(t.root)
-	return graph.saveDotAndPicture(filename, debug)
+	return graph.saveDotAndPicture(filename, false)
+}
+
+func (t *Tree23) GraphAndPictureDebug(filename string) error {
+	graph := NewGraph(t.root)
+	return graph.saveDotAndPicture(filename, true)
 }
 
 func (t *Tree23) Height() int {
@@ -114,48 +121,29 @@ func (t *Tree23) Upsert(kvItems []KeyValue, stats *Stats) *Tree23 {
 	if len(nodes) == 1 {
 		t.root = nodes[0]
 	} else {
-		t.root = t.promote(nodes)
+		promoted := t.promote(nodes)
+		ensure(len(promoted) == 1, fmt.Sprintf("invalid promoted length: %d", len(promoted)))
+		t.root = promoted[0]
 	}
 	log.Debugf("Upsert: t=%p root=%p\n", t, t.root)
 	return t
 }
 
-func (t *Tree23) promote(nodes []*Node23) *Node23 {
+func (t *Tree23) promote(nodes []*Node23) []*Node23 {
 	log.Debugf("promote: #nodes=%d nodes=%v\n", len(nodes), nodes)
-	numberOfGroups := len(nodes) / 3
-	if len(nodes) % 3 > 0 {
-		numberOfGroups++
-	}
-	ensure(numberOfGroups > 0, "number of groups is zero")
-	log.Tracef("promote: numberOfGroups=%d\n", numberOfGroups)
-	remainingChildrenCount := len(nodes)
-	upperNodes := make([]*Node23, 0)
-	for i := numberOfGroups-1; i >= 0; i-- {
-		log.Debugf("promote: i=%d\n", i)
-		childNodes := make([]*Node23, 0)
-		if remainingChildrenCount > 4 {
-			log.Debugf("promote: i*3=%d i*3+1=%d i*3+2=%d\n", i*3, i*3+1, i*3+2)
-			childNodes = append(childNodes, nodes[i*3], nodes[i*3+1], nodes[i*3+2])
-			remainingChildrenCount-=3
-		} else if remainingChildrenCount % 2 == 0 { /* 4 or 2 */
-			log.Debugf("promote: i*2=%d i*2+1=%d\n", i*2, i*2+1)
-			childNodes = append(childNodes, nodes[i*2], nodes[i*2+1])
-			remainingChildrenCount-=2
-		} else { /* 3 */
-			log.Debugf("promote: i*3=%d i*3+1=%d i*3+2=%d\n", i*3, i*3+1, i*3+2)
-			childNodes = append(childNodes, nodes[i*3], nodes[i*3+1], nodes[i*3+2])
-			remainingChildrenCount-=3
+	upwards := make([]*Node23, 0)
+	if len(nodes) > 3 {
+		for len(nodes) > 3 {
+			upwards = append(upwards, makeInternalNode(nodes[:2]))
+			nodes = nodes[2:]
 		}
-		upperNodes = append([]*Node23{makeInternalNode(childNodes)}, upperNodes...)
-	}
-	ensure(remainingChildrenCount == 0, "remainingChildrenCount is not zero")
-	ensure(len(upperNodes) > 0, "upperNodes length is zero")
-	if len(upperNodes) == 1 {
-		log.Debugf("promote: root=%s\n", upperNodes[0])
-		return upperNodes[0]
+		upwards = append(upwards, makeInternalNode(nodes[:]))
+		log.Debugf("promote: >3 #upwards=%d upwards=%v\n", len(upwards), upwards)
+		return t.promote(upwards)
 	} else {
-		log.Debugf("promote: upperNodes=%v\n", upperNodes)
-		return t.promote(upperNodes)
+		upwards = append(upwards, makeInternalNode(nodes))
+		log.Debugf("promote: 2/3 #upwards=%d upwards=%v\n", len(upwards), upwards)
+		return upwards
 	}
 }
 

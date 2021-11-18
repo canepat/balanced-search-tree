@@ -2,7 +2,6 @@ package cairo_bptree
 
 import (
 	"fmt"
-	"sort"
 	"unsafe"
 
 	log "github.com/sirupsen/logrus"
@@ -17,7 +16,12 @@ func (keys Keys) Less(i, j int) bool { return keys[i] < keys[j] }
 func (keys Keys) Swap(i, j int) { keys[i], keys[j] = keys[j], keys[i] }
 
 func (keys Keys) Contains(key Felt) bool {
-	return sort.Search(len(keys), func(i int) bool { return keys[i] == key }) != len(keys)
+	for _, k := range keys {
+		if k == key {
+			return true
+		}
+	}
+	return false
 }
 
 type KeyValue struct {

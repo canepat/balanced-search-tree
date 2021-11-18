@@ -100,7 +100,7 @@ var deleteTestTable = []DeleteTest {
 
 	{[]KeyValue{{1, 1}, {2, 2}},				[]Felt{1, 2},			[]Felt{1},		[]Felt{2}},
 	{[]KeyValue{{1, 1}, {2, 2}},				[]Felt{1, 2},			[]Felt{2},		[]Felt{1}},
-	//{[]KeyValue{{1, 1}, {2, 2}},				[]Felt{1, 2},			[]Felt{1, 2},		[]Felt{}},
+	{[]KeyValue{{1, 1}, {2, 2}},				[]Felt{1, 2},			[]Felt{1, 2},		[]Felt{}},
 
 	{[]KeyValue{{1, 1}, {2, 2}, {3, 3}},			[]Felt{3, 1, 2, 3},		[]Felt{1},		[]Felt{2, 3}},
 	{[]KeyValue{{1, 1}, {2, 2}, {3, 3}},			[]Felt{3, 1, 2, 3},		[]Felt{2},		[]Felt{1, 3}},

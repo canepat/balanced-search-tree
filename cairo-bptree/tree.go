@@ -5,11 +5,11 @@ import (
 )
 
 type Stats struct {
-	ExposedCount	uint64
+	ExposedCount uint64
 }
 
 type Tree23 struct {
-	root	*Node23
+	root *Node23
 }
 
 func NewEmptyTree23() *Tree23 {
@@ -102,7 +102,7 @@ func (t *Tree23) WalkKeysPostOrder() []Felt {
 		}
 		return nil
 	})
-	keys := ptr2pte(key_pointers)
+	keys := deref(key_pointers)
 	log.Tracef("WalkKeysPostOrder: keys=%v\n", keys)
 	return keys
 }

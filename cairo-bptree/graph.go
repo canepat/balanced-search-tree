@@ -10,7 +10,7 @@ import (
 )
 
 type Node23Graph struct {
-	node	*Node23
+	node *Node23
 }
 
 func NewGraph(node *Node23) *Node23Graph {
@@ -19,11 +19,11 @@ func NewGraph(node *Node23) *Node23Graph {
 
 func (g *Node23Graph) saveDot(filename string, debug bool) {
 	colors := []string{"#FDF3D0", "#DCE8FA", "#D9E7D6", "#F1CFCD", "#F5F5F5", "#E1D5E7", "#FFE6CC", "white"}
-	f, err := os.OpenFile(filename + ".dot", os.O_RDWR | os.O_CREATE, 0755)
+	f, err := os.OpenFile(filename+".dot", os.O_RDWR|os.O_CREATE, 0755)
 	if err != nil {
 		log.Fatal(err)
 	}
-	defer func () {
+	defer func() {
 		if err := f.Close(); err != nil {
 			log.Fatal(err)
 		}
@@ -52,7 +52,7 @@ func (g *Node23Graph) saveDot(filename string, debug bool) {
 			right = "<R>R"
 		}
 		var nodeId string
-		ensure(len(n.keys) > 0 , fmt.Sprintf("node %s has zero keys", n))
+		ensure(len(n.keys) > 0, fmt.Sprintf("node %s has zero keys", n))
 		if n.isLeaf {
 			next := ""
 			if n.nextKey() == nil {
@@ -61,15 +61,15 @@ func (g *Node23Graph) saveDot(filename string, debug bool) {
 				next = strconv.FormatUint(uint64(*n.nextKey()), 10)
 			}
 			if debug {
-				nodeId = fmt.Sprintf("k=%v %s-%v", ptr2pte(n.keys[:len(n.keys)-1]), next, n.keys)
+				nodeId = fmt.Sprintf("k=%v %s-%v", deref(n.keys[:len(n.keys)-1]), next, n.keys)
 			} else {
-				nodeId = fmt.Sprintf("k=%v %s", ptr2pte(n.keys[:len(n.keys)-1]), next)
+				nodeId = fmt.Sprintf("k=%v %s", deref(n.keys[:len(n.keys)-1]), next)
 			}
 		} else {
 			if debug {
-				nodeId = fmt.Sprintf("k=%v-%v", ptr2pte(n.keys), n.keys)
+				nodeId = fmt.Sprintf("k=%v-%v", deref(n.keys), n.keys)
 			} else {
-				nodeId = fmt.Sprintf("k=%v", ptr2pte(n.keys))
+				nodeId = fmt.Sprintf("k=%v", deref(n.keys))
 			}
 		}
 		//s := fmt.Sprintln(/*n.path*/n.rawPointer(), " [label=\"", left, "|{<C>", nodeId, "|", down, "}|", right, "\" style=filled fillcolor=\"", colors[0], "\"];")
@@ -124,8 +124,8 @@ func (g *Node23Graph) saveDotAndPicture(filename string, debug bool) error {
 	g.saveDot(filepath, debug)
 	dotExecutable, _ := exec.LookPath("dot")
 	cmdDot := &exec.Cmd{
-		Path: dotExecutable,
-		Args: []string{dotExecutable, "-Tpng", filepath + ".dot", "-o", filepath + ".png"},
+		Path:   dotExecutable,
+		Args:   []string{dotExecutable, "-Tpng", filepath + ".dot", "-o", filepath + ".png"},
 		Stdout: os.Stdout,
 		Stderr: os.Stderr,
 	}

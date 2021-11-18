@@ -21,8 +21,8 @@ func (keys Keys) Contains(key Felt) bool {
 }
 
 type KeyValue struct {
-	key	Felt
-	value	Felt
+	key   Felt
+	value Felt
 }
 
 type KeyValueByKey []KeyValue
@@ -34,15 +34,15 @@ func (kv KeyValueByKey) Less(i, j int) bool { return kv[i].key < kv[j].key }
 func (kv KeyValueByKey) Swap(i, j int) { kv[i], kv[j] = kv[j], kv[i] }
 
 type Node23 struct {
-	isLeaf		bool
-	children	[]*Node23
-	keys		[]*Felt
-	values		[]*Felt
-	exposed		bool
+	isLeaf   bool
+	children []*Node23
+	keys     []*Felt
+	values   []*Felt
+	exposed  bool
 }
 
 func (n *Node23) String() string {
-	s := fmt.Sprintf("{%p isLeaf=%t keys=%v-%v children=[", n, n.isLeaf, ptr2pte(n.keys), n.keys)
+	s := fmt.Sprintf("{%p isLeaf=%t keys=%v-%v children=[", n, n.isLeaf, deref(n.keys), n.keys)
 	for i, child := range n.children {
 		s += fmt.Sprintf("%p", child)
 		if i != len(n.children)-1 {
@@ -68,7 +68,8 @@ func makeLeafNode(keys, values []*Felt) *Node23 {
 	return n
 }
 
-func makeEmptyLeafNode() (*Node23) {
+func makeEmptyLeafNode() *Node23 {
+	// At least nil next key is always present
 	return makeLeafNode(make([]*Felt, 1), make([]*Felt, 1))
 }
 
@@ -79,7 +80,7 @@ func internalKeysFromChildren(children []*Node23) []*Felt {
 		ensure(child.nextKey() != nil, "child next key is zero")
 		internalKeys = append(internalKeys, child.nextKey())
 	}
-	log.Tracef("internalKeysFromChildren: children=%v internalKeys=%v\n", children, ptr2pte(internalKeys))
+	log.Tracef("internalKeysFromChildren: children=%v internalKeys=%v\n", children, deref(internalKeys))
 	return internalKeys
 }
 
@@ -151,6 +152,11 @@ func (n *Node23) firstKey() *Felt {
 	return n.keys[0]
 }
 
+func (n *Node23) firstValue() *Felt {
+	ensure(len(n.values) > 0, "firstValue: node has no value")
+	return n.values[0]
+}
+
 func (n *Node23) lastChild() *Node23 {
 	ensure(len(n.children) > 0, "lastChild: node has no children")
 	return n.children[len(n.children)-1]
@@ -178,9 +184,18 @@ func (n *Node23) setNextKey(nextKey *Felt) {
 func (n *Node23) canonicalKeys() []Felt {
 	if n.isLeaf {
 		ensure(len(n.keys) > 0, "canonicalKeys: node has no key")
-		return ptr2pte(n.keys[:len(n.keys)-1])
+		return deref(n.keys[:len(n.keys)-1])
 	} else {
-		return ptr2pte(n.keys[:])
+		return deref(n.keys[:])
+	}
+}
+
+func (n *Node23) isEmpty() bool {
+	if n.isLeaf {
+		// At least next key is always present
+		return n.keyCount() == 1
+	} else {
+		return n.childrenCount() == 0
 	}
 }
 
@@ -199,7 +214,7 @@ func (n *Node23) keysByLevel(level int) []Felt {
 	} else {
 		levelKeys := make([]Felt, 0)
 		for _, child := range n.children {
-			childLevelKeys := child.keysByLevel(level-1)
+			childLevelKeys := child.keysByLevel(level - 1)
 			levelKeys = append(levelKeys, childLevelKeys...)
 		}
 		return levelKeys

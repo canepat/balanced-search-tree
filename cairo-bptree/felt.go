@@ -31,7 +31,7 @@ func pointerValue(pointer *Felt) string {
 	}
 }
 
-func ptr2pte(pointers []*Felt) []Felt {
+func deref(pointers []*Felt) []Felt {
 	pointees := make([]Felt, 0)
 	for _, ptr := range pointers {
 		if ptr != nil {

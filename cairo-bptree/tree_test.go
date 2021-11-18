@@ -96,20 +96,27 @@ var deleteTestTable = []DeleteTest {
 	/* POSITIVE TEST CASES */
 	{[]KeyValue{},						[]Felt{},			[]Felt{},		[]Felt{}},
 
+	{[]KeyValue{{1, 1}},					[]Felt{1},			[]Felt{},		[]Felt{1}},
 	{[]KeyValue{{1, 1}},					[]Felt{1},			[]Felt{1},		[]Felt{}},
 
+	{[]KeyValue{{1, 1}, {2, 2}},				[]Felt{1, 2},			[]Felt{},		[]Felt{1, 2}},
 	{[]KeyValue{{1, 1}, {2, 2}},				[]Felt{1, 2},			[]Felt{1},		[]Felt{2}},
 	{[]KeyValue{{1, 1}, {2, 2}},				[]Felt{1, 2},			[]Felt{2},		[]Felt{1}},
 	{[]KeyValue{{1, 1}, {2, 2}},				[]Felt{1, 2},			[]Felt{1, 2},		[]Felt{}},
 
+	{[]KeyValue{{1, 1}, {2, 2}, {3, 3}},			[]Felt{3, 1, 2, 3},		[]Felt{},		[]Felt{3, 1, 2, 3}},
 	{[]KeyValue{{1, 1}, {2, 2}, {3, 3}},			[]Felt{3, 1, 2, 3},		[]Felt{1},		[]Felt{2, 3}},
 	{[]KeyValue{{1, 1}, {2, 2}, {3, 3}},			[]Felt{3, 1, 2, 3},		[]Felt{2},		[]Felt{1, 3}},
 	{[]KeyValue{{1, 1}, {2, 2}, {3, 3}},			[]Felt{3, 1, 2, 3},		[]Felt{3},		[]Felt{1, 2}},
-	{[]KeyValue{{1, 1}, {2, 2}, {3, 3}},			[]Felt{3, 1, 2, 3},		[]Felt{4},		[]Felt{3, 1, 2, 3}},
+	{[]KeyValue{{1, 1}, {2, 2}, {3, 3}},			[]Felt{3, 1, 2, 3},		[]Felt{1, 2},		[]Felt{3}},
+	{[]KeyValue{{1, 1}, {2, 2}, {3, 3}},			[]Felt{3, 1, 2, 3},		[]Felt{1, 3},		[]Felt{2}},
+	{[]KeyValue{{1, 1}, {2, 2}, {3, 3}},			[]Felt{3, 1, 2, 3},		[]Felt{2, 3},		[]Felt{1}},
+	//{[]KeyValue{{1, 1}, {2, 2}, {3, 3}},			[]Felt{3, 1, 2, 3},		[]Felt{1, 2, 3},	[]Felt{}},
 
 	{[]KeyValue{{1, 1}, {2, 2}, {3, 3}, {4, 4}},		[]Felt{3, 1, 2, 3, 4},		[]Felt{1},		[]Felt{3, 2, 3, 4}},
 	{[]KeyValue{{1, 1}, {2, 2}, {3, 3}, {4, 4}},		[]Felt{3, 1, 2, 3, 4},		[]Felt{2},		[]Felt{3, 1, 3, 4}},
 	{[]KeyValue{{1, 1}, {2, 2}, {3, 3}, {4, 4}},		[]Felt{3, 1, 2, 3, 4},		[]Felt{3},		[]Felt{3, 1, 2, 4}},
+	{[]KeyValue{{1, 1}, {2, 2}, {3, 3}, {4, 4}},		[]Felt{3, 1, 2, 3, 4},		[]Felt{4},		[]Felt{3, 1, 2, 3}},
 
 	{[]KeyValue{{1, 1}, {2, 2}, {3, 3}, {4, 4}, {5, 5}},	[]Felt{3, 5, 1, 2, 3, 4, 5},	[]Felt{1},		[]Felt{3, 5, 2, 3, 4, 5}},
 	{[]KeyValue{{1, 1}, {2, 2}, {3, 3}, {4, 4}, {5, 5}},	[]Felt{3, 5, 1, 2, 3, 4, 5},	[]Felt{2},		[]Felt{3, 5, 1, 3, 4, 5}},
@@ -121,7 +128,7 @@ var deleteTestTable = []DeleteTest {
 	{[]KeyValue{},						[]Felt{},			[]Felt{1},		[]Felt{}},
 	{[]KeyValue{{1, 1}},					[]Felt{1},			[]Felt{2},		[]Felt{1}},
 	{[]KeyValue{{1, 1}, {2, 2}},				[]Felt{1, 2},			[]Felt{3},		[]Felt{1, 2}},
-	{[]KeyValue{{1, 1}, {2, 2}, {3, 3}, {4, 4}},		[]Felt{3, 1, 2, 3, 4},		[]Felt{4},		[]Felt{3, 1, 2, 3}},
+	{[]KeyValue{{1, 1}, {2, 2}, {3, 3}},			[]Felt{3, 1, 2, 3},		[]Felt{4},		[]Felt{3, 1, 2, 3}},
 	{[]KeyValue{{1, 1}, {2, 2}, {3, 3}, {4, 4}},		[]Felt{3, 1, 2, 3, 4},		[]Felt{5},		[]Felt{3, 1, 2, 3, 4}},
 	{[]KeyValue{{1, 1}, {2, 2}, {3, 3}, {4, 4}, {5, 5}},	[]Felt{3, 5, 1, 2, 3, 4, 5},	[]Felt{6},		[]Felt{3, 5, 1, 2, 3, 4, 5}},
 

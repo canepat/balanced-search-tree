@@ -116,8 +116,13 @@ var insertTestTable = []UpsertTest {
 	{[]KeyValue{{1, 1}, {4, 4}},		[]Felt{1, 4},		[]KeyValue{{0, 0}, {2, 2}, {5, 5}},		[]Felt{2, 5, 0, 1, 2, 4, 5}},
 	{[]KeyValue{{1, 1}, {4, 4}},		[]Felt{1, 4},		[]KeyValue{{0, 0}, {2, 2}, {3, 3}, {5, 5}},	[]Felt{2, 4, 0, 1, 2, 3, 4, 5}},
 
-	//{[]KeyValue{{1, 1}, {3, 3}, {5, 5}},	[]Felt{1, 3, 5},	[]KeyValue{{0, 0}},				[]Felt{3, 0, 1, 3, 5}},
-	//{[]KeyValue{{1, 1}, {3, 3}, {5, 5}},	[]Felt{1, 3, 5},	[]KeyValue{{0, 0}, {2, 2}, {4, 4}},		[]Felt{2, 4, 0, 1, 2, 3, 4, 5}},
+	{[]KeyValue{{1, 1}, {3, 3}, {5, 5}},	[]Felt{5, 1, 3, 5},	[]KeyValue{{0, 0}},				[]Felt{3, 0, 1, 3, 5}},
+	{[]KeyValue{{1, 1}, {3, 3}, {5, 5}},	[]Felt{5, 1, 3, 5},	[]KeyValue{{0, 0}, {2, 2}, {4, 4}},		[]Felt{2, 4, 0, 1, 2, 3, 4, 5}},
+	{[]KeyValue{{1, 1}, {3, 3}, {5, 5}},	[]Felt{5, 1, 3, 5},	[]KeyValue{{6, 6}, {7, 7}, {8, 8}},		[]Felt{5, 7, 1, 3, 5, 6, 7, 8}},
+	{[]KeyValue{{1, 1}, {3, 3}, {5, 5}},	[]Felt{5, 1, 3, 5},	[]KeyValue{{6, 6}, {7, 7}, {8, 8}, {9, 9}},	[]Felt{7, 5, 9, 1, 3, 5, 6, 7, 8, 9}},
+
+	//{[]KeyValue{{1, 1}, {2, 2}, {3, 3}, {4, 4}},	[]Felt{3, 1, 2, 3, 4},	[]KeyValue{{0, 0}},			[]Felt{2, 4, 0, 1, 2, 3, 4}},
+	//{[]KeyValue{{1, 1}, {3, 3}, {5, 5}, {7, 7}},	[]Felt{5, 1, 3, 5, 7},	[]KeyValue{{0, 0}},			[]Felt{3, 7, 0, 1, 3, 5, 7}},
 }
 
 var updateTestTable = []UpsertTest {
@@ -239,9 +244,9 @@ func TestUpsertNextKey(t *testing.T) {
 	//tn.GraphAndPicture("tn2")
 	assertTwoThreeTree(t, tn, []Felt{4, 2, 6, 0, 1, 2, 3, 4, 5, 6, 7})
 	
-	//data = []KeyValue{{100, 100}, {101, 101}, {200, 200}, {201, 201}, {202, 202}}
-	//tn = tn.UpsertNoStats(data)
-	//tn.GraphAndPicture("tn3")
+	data = []KeyValue{{100, 100}, {101, 101}, {200, 200}, {201, 201}, {202, 202}}
+	tn = tn.UpsertNoStats(data)
+	tn.GraphAndPicture("tn3")
 	//assertTwoThreeTree(t, tn, []Felt{2, 2, 100, 0, 1, 2, 3, 4, 5, 6, 7, 100, 101, 200, 201, 202})
 	
 	//data = []KeyValue{{10, 10}, {150, 150}, {250, 250}, {251, 251}, {252, 252}}

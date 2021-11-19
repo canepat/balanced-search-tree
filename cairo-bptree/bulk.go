@@ -97,9 +97,8 @@ func upsertInternal(n *Node23, kvItems []KeyValue, stats *Stats) (promoted []*No
 		}
 	}
 	log.Tracef("upsertInternal: n=%s innerPromotedNodes=%v\n", n, innerPromotedNodes)
-	n.children = innerPromotedNodes
-	n.keys = internalKeysFromChildren(n.children)
-	log.Tracef("upsertInternal: n=%s newFirstKey=%s\n", n, pointerValue(newFirstKey))
+	canonicalize(n, innerPromotedNodes)
+	log.Tracef("upsertInternal: after canonicalization n=%s\n", n)
 	if n.childrenCount() > 3 {
 		nodes := make([]*Node23, 0)
 		promotedKeys := make([]*Felt, 0)
@@ -177,6 +176,34 @@ func splitItems(n *Node23, kvItems []KeyValue) [][]KeyValue {
 	return itemSubsets
 }
 
+func canonicalize(n *Node23, promotedNodes []*Node23) {
+	newChildren := make([]*Node23, 0)
+	for i := 0; i < len(promotedNodes)-1; i++ {
+		first, second := promotedNodes[i], promotedNodes[i+1]
+		if first.keyCount() == 2 && second.keyCount() == 2 {
+			if first.isLeaf {
+				keys := append(make([]*Felt, 0), first.keys[0], second.keys[0], second.keys[1])
+				values := append(make([]*Felt, 0), first.values[0], second.values[0], second.values[1])
+				newChildren = append(newChildren, makeLeafNode(keys, values))
+				i++
+			} else {
+				// TODO: figure out if it's OK
+				newChildren = append(newChildren, first)
+				if i == len(promotedNodes)-2 {
+					newChildren = append(newChildren, second)
+				}
+			}
+		} else {
+			newChildren = append(newChildren, first)
+			if i == len(promotedNodes)-2 {
+				newChildren = append(newChildren, second)
+			}
+		}
+	}
+	n.children = newChildren
+	n.keys = internalKeysFromChildren(newChildren)
+}
+
 func delete(n *Node23, keysToDelete []Felt, stats *Stats) (deleted *Node23, nextKey *Felt) {
 	log.Tracef("delete: n=%p keysToDelete=%v\n", n, keysToDelete)
 	ensure(sort.IsSorted(Keys(keysToDelete)), "keysToDelete are not sorted")
@@ -184,7 +211,7 @@ func delete(n *Node23, keysToDelete []Felt, stats *Stats) (deleted *Node23, next
 		return n, nil
 	}
 	if n.isLeaf {
-		deleteKeys(n, keysToDelete)
+		deleteLeafKeys(n, keysToDelete)
 		if n.keyCount() == 1 {
 			return nil, n.nextKey()
 		} else {
@@ -209,7 +236,8 @@ func delete(n *Node23, keysToDelete []Felt, stats *Stats) (deleted *Node23, next
 	}
 }
 
-func deleteKeys(n *Node23, keysToDelete []Felt) {
+func deleteLeafKeys(n *Node23, keysToDelete []Felt) {
+	ensure(n.isLeaf, "deleteLeafKeys: node is not leaf")
 	switch n.keyCount() {
 	case 2:
 		if Keys(keysToDelete).Contains(*n.keys[0]) {
@@ -227,9 +255,7 @@ func deleteKeys(n *Node23, keysToDelete []Felt) {
 			}
 		} else {
 			if Keys(keysToDelete).Contains(*n.keys[1]) {
-				//n.keys = append(n.keys[0:1], n.keys[2:]...)
 				n.keys = append(n.keys[:1], n.keys[2])
-				//n.values = append(n.values[0:1], n.values[2:]...)
 				n.values = append(n.values[:1], n.values[2])
 			}
 		}

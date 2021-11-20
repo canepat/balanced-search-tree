@@ -97,7 +97,8 @@ func upsertInternal(n *Node23, kvItems []KeyValue, stats *Stats) (promoted []*No
 		}
 	}
 	log.Tracef("upsertInternal: n=%s innerPromotedNodes=%v\n", n, innerPromotedNodes)
-	canonicalize(n, innerPromotedNodes)
+	n.children = innerPromotedNodes
+	n.keys = internalKeysFromChildren(innerPromotedNodes)
 	log.Tracef("upsertInternal: after canonicalization n=%s\n", n)
 	if n.childrenCount() > 3 {
 		nodes := make([]*Node23, 0)
@@ -174,34 +175,6 @@ func splitItems(n *Node23, kvItems []KeyValue) [][]KeyValue {
 	}
 	ensure(len(itemSubsets) == len(n.children), "item subsets and children have different cardinality")
 	return itemSubsets
-}
-
-func canonicalize(n *Node23, promotedNodes []*Node23) {
-	newChildren := make([]*Node23, 0)
-	for i := 0; i < len(promotedNodes)-1; i++ {
-		first, second := promotedNodes[i], promotedNodes[i+1]
-		if first.keyCount() == 2 && second.keyCount() == 2 {
-			if first.isLeaf {
-				keys := append(make([]*Felt, 0), first.keys[0], second.keys[0], second.keys[1])
-				values := append(make([]*Felt, 0), first.values[0], second.values[0], second.values[1])
-				newChildren = append(newChildren, makeLeafNode(keys, values))
-				i++
-			} else {
-				// TODO: figure out if it's OK
-				newChildren = append(newChildren, first)
-				if i == len(promotedNodes)-2 {
-					newChildren = append(newChildren, second)
-				}
-			}
-		} else {
-			newChildren = append(newChildren, first)
-			if i == len(promotedNodes)-2 {
-				newChildren = append(newChildren, second)
-			}
-		}
-	}
-	n.children = newChildren
-	n.keys = internalKeysFromChildren(newChildren)
 }
 
 func delete(n *Node23, keysToDelete []Felt, stats *Stats) (deleted *Node23, nextKey *Felt) {
@@ -378,4 +351,5 @@ func demote(n *Node23, nextKey *Felt) (*Node23, *Felt) {
 }
 
 func updateNextKey(n *Node23, nextKey *Felt) {
+	// TODO: implement
 }

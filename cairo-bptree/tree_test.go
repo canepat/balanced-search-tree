@@ -216,14 +216,14 @@ func TestUpsertUpdate(t *testing.T) {
 	}
 }
 
-/*func TestUpsertIdempotent(t *testing.T) {
+func TestUpsertIdempotent(t *testing.T) {
 	for _, data := range isTree23TestTable {
 		tree := NewTree23(data.initialItems)
 		assertTwoThreeTree(t, tree, data.expectedKeysLevelOrder)
 		tree.UpsertNoStats(data.initialItems)
 		assertTwoThreeTree(t, tree, data.expectedKeysLevelOrder)
 	}
-}*/
+}
 
 func TestUpsertNextKey(t *testing.T) {
 	dataCount := 4

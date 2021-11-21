@@ -113,13 +113,13 @@ func (t *Tree23) UpsertNoStats(kvItems []KeyValue) *Tree23 {
 
 func (t *Tree23) Upsert(kvItems []KeyValue, stats *Stats) *Tree23 {
 	log.Debugf("Upsert: t=%p root=%p kvItems=%v\n", t, t.root, kvItems)
-	promoted, _ := upsert(t.root, kvItems, stats)
+	promoted, _, intermediateKeys := upsert(t.root, kvItems, stats)
 	log.Tracef("Upsert: promoted=%v\n", promoted)
 	ensure(len(promoted) > 0, "nodes length is zero")
 	if len(promoted) == 1 {
 		t.root = promoted[0]
 	} else {
-		t.root = promote(promoted)
+		t.root = promote(promoted, intermediateKeys)
 	}
 	log.Debugf("Upsert: t=%p root=%p\n", t, t.root)
 	return t

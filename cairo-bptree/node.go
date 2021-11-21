@@ -88,7 +88,7 @@ func internalKeysFromChildren(children []*Node23) []*Felt {
 	return internalKeys
 }
 
-func promote(nodes []*Node23) *Node23 {
+func promote(nodes []*Node23, intermediateKeys []*Felt) *Node23 {
 	log.Debugf("promote: #nodes=%d nodes=%v\n", len(nodes), nodes)
 	promotedRoot := makeInternalNode(nodes)
 	log.Debugf("promote: promotedRoot=%s\n", promotedRoot)

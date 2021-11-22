@@ -76,8 +76,10 @@ func upsertInternal(n *Node23, kvItems []KeyValue, stats *Stats) (promoted []*No
 	ensure(!n.isLeaf, "node is not internal")
 	log.Tracef("upsertInternal: n=%s keyCount=%d\n", n, n.keyCount())
 	if len(kvItems) == 0 {
-		ensure(n.lastChild().nextKey() != nil, "upsertLeaf: n.lastChild().nextKey() is nil")
-		return []*Node23{n}, nil, []*Felt{n.lastChild().nextKey()}
+		if n.lastChild().nextKey() != nil {
+			intermediateKeys = append(intermediateKeys, n.lastChild().nextKey())
+		}
+		return []*Node23{n}, nil, intermediateKeys
 	}
 
 	if !n.exposed {

@@ -134,6 +134,15 @@ var insertTestTable = []UpsertTest {
 	{[]KeyValue{{1, 1}, {3, 3}, {5, 5}, {7, 7}},		[]Felt{5, 1, 3, 5, 7},		[]KeyValue{{0, 0}},	[]Felt{3, 5, 0, 1, 3, 5, 7}},
 
 	{[]KeyValue{{1, 1}, {3, 3}, {5, 5}, {7, 7}, {9, 9}},	[]Felt{5, 9, 1, 3, 5, 7, 9},	[]KeyValue{{0, 0}},	[]Felt{5, 3, 9, 0, 1, 3, 5, 7, 9}},
+
+	// Debug
+	{[]KeyValue{{1, 1}, {2, 2}, {3, 3}, {5, 5}, {6, 6}, {7, 7}, {8, 8}},	[]Felt{6, 3, 8, 1, 2, 3, 5, 6, 7, 8},	[]KeyValue{{4, 4}},	[]Felt{6, 3, 5, 8, 1, 2, 3, 4, 5, 6, 7, 8}},
+	{
+		[]KeyValue{{10, 10}, {15, 15}, {20, 20}},
+		[]Felt{20, 10, 15, 20},
+		[]KeyValue{{1, 1}, {2, 2}, {3, 3}, {4, 4}, {5, 5}, {11, 11}, {13, 13}, {18, 18}, {19, 19}, {30, 30}, {31, 31}},
+		[]Felt{15, 5, 20, 3, 11, 19, 31, 1, 2, 3, 4, 5, 10, 11, 13, 15, 18, 19, 20, 30, 31},
+	},
 }
 
 var updateTestTable = []UpsertTest {
@@ -292,25 +301,17 @@ func TestDelete(t *testing.T) {
 func FuzzUpsert(f *testing.F) {
 	f.Fuzz(func (t *testing.T, input1, input2 []byte) {
 		//t.Parallel()
-		//fmt.Printf("input1=%v input2=%v\n", input1, input2)
 		treeFactory := NewTree23BinaryFactory(1)
-		bytesReader := bytes.NewReader(input1)
-		kvStatePairs := treeFactory.NewUniqueKeyValues(bufio.NewReader(bytesReader))
-		if !sort.IsSorted(KeyValueByKey(kvStatePairs)) {
-			t.Skip()
-		}
-		kvStateChangesPairs := make([]KeyValue, len(input2))
-		for i, b := range input2 {
-			kvStateChangesPairs[i] = KeyValue{Felt(b), Felt(b)}
-		}
-		if !sort.IsSorted(KeyValueByKey(kvStateChangesPairs)) {
-			t.Skip()
-		}
+		bytesReader1 := bytes.NewReader(input1)
+		kvStatePairs := treeFactory.NewUniqueKeyValues(bufio.NewReader(bytesReader1))
+		require.True(t, sort.IsSorted(KeyValueByKey(kvStatePairs)), "kvStatePairs is not sorted")
+		bytesReader2 := bytes.NewReader(input2)
+		kvStateChangesPairs := treeFactory.NewUniqueKeyValues(bufio.NewReader(bytesReader2))
+		fmt.Printf("kvStatePairs=%v kvStateChangesPairs=%v\n", kvStatePairs, kvStateChangesPairs)
+		require.True(t, sort.IsSorted(KeyValueByKey(kvStateChangesPairs)), "kvStateChangesPairs is not sorted")
 		tree := NewTree23(kvStatePairs)
-		//tree.GraphAndPicture("tree_step1")
-		assertTwoThreeTree(t, tree, nil)
+		require23Tree(t, tree, nil)
 		tree = tree.UpsertNoStats(kvStateChangesPairs)
-		//tree.GraphAndPicture("tree_step2")
-		assertTwoThreeTree(t, tree, nil)
+		require23Tree(t, tree, nil)
 	})
 }

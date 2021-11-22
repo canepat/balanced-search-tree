@@ -120,21 +120,15 @@ func upsertInternal(n *Node23, kvItems []KeyValue, stats *Stats) (promoted []*No
 	}
 	log.Tracef("upsertInternal: n=%s newChildren=%v newKeys=%v\n", n, newChildren, deref(newKeys))
 	n.children = newChildren
-	n.keys = newKeys
 	if n.childrenCount() > 3 {
-		nodes := make([]*Node23, 0)
-		promotedKeys := make([]*Felt, 0)
 		for n.childrenCount() > 3 {
-			nodes = append(nodes, makeInternalNode(n.children[:2], n.keys[:1]))
+			promoted = append(promoted, makeInternalNode(n.children[:2], newKeys[:1]))
 			n.children = n.children[2:]
-			promotedKeys = append(promotedKeys, n.keys[1])
-			n.keys = n.keys[2:]
+			intermediateKeys = append(intermediateKeys, newKeys[1])
+			newKeys = newKeys[2:]
 		}
-		nodes = append(nodes, makeInternalNode(n.children[:], n.keys[:]))
-		n.children = nodes
-		n.keys = promotedKeys
-		ensure(n.lastChild().nextKey() != nil, "upsertLeaf: n.lastChild().nextKey() is nil")
-		return []*Node23{n}, newFirstKey, []*Felt{n.lastChild().nextKey()}
+		promoted = append(promoted, makeInternalNode(n.children[:], newKeys[:]))
+		return promoted, newFirstKey, intermediateKeys
 	} else { // n.childrenCount() is 2 or 3
 		ensure(len(newKeys) > 0, "upsertInternal: newKeys count is zero")
 		if len(newKeys) == len(n.children) {

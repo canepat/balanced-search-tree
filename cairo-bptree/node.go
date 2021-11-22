@@ -57,9 +57,8 @@ func (n *Node23) String() string {
 	return s
 }
 
-func makeInternalNode(children []*Node23) *Node23 {
-	internalKeys := internalKeysFromChildren(children)
-	n := &Node23{isLeaf: false, children: children, keys: internalKeys, values: make([]*Felt, 0), exposed: true}
+func makeInternalNode(children []*Node23, keys []*Felt) *Node23 {
+	n := &Node23{isLeaf: false, children: children, keys: keys, values: make([]*Felt, 0), exposed: true}
 	return n
 }
 
@@ -77,35 +76,22 @@ func makeEmptyLeafNode() *Node23 {
 	return makeLeafNode(make([]*Felt, 1), make([]*Felt, 1))
 }
 
-func internalKeysFromChildren(children []*Node23) []*Felt {
-	ensure(len(children) > 1, "number of children is lower than 2")
-	internalKeys := make([]*Felt, 0, len(children)-1)
-	for _, child := range children[:len(children)-1] {
-		ensure(child.nextKey() != nil, "child next key is zero")
-		internalKeys = append(internalKeys, child.nextKey())
-	}
-	log.Tracef("internalKeysFromChildren: children=%v internalKeys=%v\n", children, deref(internalKeys))
-	return internalKeys
-}
-
 func promote(nodes []*Node23, intermediateKeys []*Felt) *Node23 {
 	log.Debugf("promote: #nodes=%d nodes=%v\n", len(nodes), nodes)
-	promotedRoot := makeInternalNode(nodes)
+	promotedRoot := makeInternalNode(nodes, intermediateKeys)
 	log.Debugf("promote: promotedRoot=%s\n", promotedRoot)
-	if promotedRoot.keyCount() > 2 {
+	if promotedRoot.childrenCount() > 3 {
 		intermediateNodes := make([]*Node23, 0)
 		promotedKeys := make([]*Felt, 0)
-		for promotedRoot.keyCount() > 2 {
-			intermediateNodes = append(intermediateNodes, makeInternalNode(promotedRoot.children[:2]))
+		for promotedRoot.childrenCount() > 3 {
+			intermediateNodes = append(intermediateNodes, makeInternalNode(promotedRoot.children[:2], promotedRoot.keys[:1]))
 			promotedRoot.children = promotedRoot.children[2:]
 			promotedKeys = append(promotedKeys, promotedRoot.keys[1])
 			promotedRoot.keys = promotedRoot.keys[2:]
 		}
-		intermediateNodes = append(intermediateNodes, makeInternalNode(promotedRoot.children[:]))
-		promotedRoot.children = intermediateNodes
-		promotedRoot.keys = promotedKeys
+		intermediateNodes = append(intermediateNodes, makeInternalNode(promotedRoot.children[:], promotedRoot.keys[:]))
 		log.Debugf("promote: #keys>2 promotedRoot=%s\n", promotedRoot)
-		return promotedRoot
+		return promote(intermediateNodes, promotedKeys)
 	} else {
 		log.Debugf("promote: #keys<=2 promotedRoot=%s\n", promotedRoot)
 		return promotedRoot

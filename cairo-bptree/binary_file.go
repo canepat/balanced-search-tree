@@ -34,11 +34,11 @@ func CreateRandomBinaryFile(prefix string, size int64) *BinaryFile {
 	for i := int64(0); i < size; i+= BLOCKSIZE {
 		bytesRead, err := io.ReadFull(rand.Reader, buffer)
 		ensure(bytesRead == len(buffer), fmt.Sprintf("insufficient bytes read %d, error %s\n", bytesRead, err))
-		log.Warnf("CreateRandomBinaryFile: bytesRead=%d\n", bytesRead)
+		log.Tracef("CreateRandomBinaryFile: bytesRead=%d\n", bytesRead)
 		bytesWritten, err := file.Write(buffer)
 
 		ensure(bytesWritten == len(buffer), fmt.Sprintf("insufficient bytes written %d, error %s\n", bytesWritten, err))
-		log.Warnf("CreateRandomBinaryFile: bytesWritten=%d\n", bytesWritten)
+		log.Tracef("CreateRandomBinaryFile: bytesWritten=%d\n", bytesWritten)
 	}
 	file.Seek(0, 0)
 

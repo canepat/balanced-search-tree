@@ -27,6 +27,13 @@ func upsert(n *Node23, kvItems []KeyValue, stats *Stats) (promoted []*Node23, ne
 func upsertLeaf(n *Node23, kvItems []KeyValue, stats *Stats) (promoted []*Node23, newFirstKey *Felt, intermediateKeys []*Felt) {
 	ensure(n.isLeaf, "node is not leaf")
 	log.Tracef("upsertLeaf: n=%p kvItems=%v\n", n, kvItems)
+	if len(kvItems) == 0 {
+		if n.nextKey() != nil {
+			intermediateKeys = append(intermediateKeys, n.nextKey())
+		}
+		return []*Node23{n}, nil, intermediateKeys
+	}
+
 	if !n.exposed {
 		n.exposed = true
 		stats.ExposedCount++
@@ -49,21 +56,30 @@ func upsertLeaf(n *Node23, kvItems []KeyValue, stats *Stats) (promoted []*Node23
 			promoted = append(promoted, newLeaf)
 			n.keys, n.values = n.keys[2:], n.values[2:]
 			log.Tracef("upsertLeaf: updated n=%s\n", n)
-			
 		}
 		newLeaf := makeLeafNode(n.keys[:], n.values[:])
-		intermediateKeys = append(intermediateKeys, n.nextKey())
+		if n.nextKey() != nil {
+			intermediateKeys = append(intermediateKeys, n.nextKey())
+		}
 		log.Tracef("upsertLeaf: last newLeaf=%s\n", newLeaf)
 		promoted = append(promoted, newLeaf)
 		return promoted, newFirstKey, intermediateKeys
 	} else {
-		return []*Node23{n}, newFirstKey, []*Felt{n.nextKey()}
+		if n.nextKey() != nil {
+			intermediateKeys = append(intermediateKeys, n.nextKey())
+		}
+		return []*Node23{n}, newFirstKey, intermediateKeys
 	}
 }
 
 func upsertInternal(n *Node23, kvItems []KeyValue, stats *Stats) (promoted []*Node23, newFirstKey *Felt, intermediateKeys []*Felt) {
 	ensure(!n.isLeaf, "node is not internal")
 	log.Tracef("upsertInternal: n=%s keyCount=%d\n", n, n.keyCount())
+	if len(kvItems) == 0 {
+		ensure(n.lastChild().nextKey() != nil, "upsertLeaf: n.lastChild().nextKey() is nil")
+		return []*Node23{n}, nil, []*Felt{n.lastChild().nextKey()}
+	}
+
 	if !n.exposed {
 		n.exposed = true
 		stats.ExposedCount++
@@ -102,21 +118,30 @@ func upsertInternal(n *Node23, kvItems []KeyValue, stats *Stats) (promoted []*No
 	}
 	log.Tracef("upsertInternal: n=%s newChildren=%v newKeys=%v\n", n, newChildren, deref(newKeys))
 	n.children = newChildren
-	n.keys = newKeys[:len(newKeys)-1]
+	n.keys = newKeys
 	if n.childrenCount() > 3 {
 		nodes := make([]*Node23, 0)
 		promotedKeys := make([]*Felt, 0)
 		for n.childrenCount() > 3 {
-			nodes = append(nodes, makeInternalNode(n.children[:2]))
+			nodes = append(nodes, makeInternalNode(n.children[:2], n.keys[:1]))
 			n.children = n.children[2:]
 			promotedKeys = append(promotedKeys, n.keys[1])
+			n.keys = n.keys[2:]
 		}
-		nodes = append(nodes, makeInternalNode(n.children[:]))
+		nodes = append(nodes, makeInternalNode(n.children[:], n.keys[:]))
 		n.children = nodes
 		n.keys = promotedKeys
+		ensure(n.lastChild().nextKey() != nil, "upsertLeaf: n.lastChild().nextKey() is nil")
 		return []*Node23{n}, newFirstKey, []*Felt{n.lastChild().nextKey()}
-	} else {
-		return []*Node23{n}, newFirstKey, []*Felt{n.lastChild().nextKey()}
+	} else { // n.childrenCount() is 2 or 3
+		ensure(len(newKeys) > 0, "upsertInternal: newKeys count is zero")
+		if len(newKeys) == len(n.children) {
+			n.keys = newKeys[:len(newKeys)-1]
+			intermediateKeys = append(intermediateKeys, newKeys[len(newKeys)-1])
+		} else {
+			n.keys = newKeys
+		}
+		return []*Node23{n}, newFirstKey, intermediateKeys
 	}
 }
 

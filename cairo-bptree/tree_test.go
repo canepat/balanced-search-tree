@@ -7,15 +7,24 @@ import (
 	"bufio"
 	"bytes"
 	"encoding/hex"
+	"fmt"
 	"sort"
 	"testing"
 
 	log "github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func assertTwoThreeTree(t *testing.T, tree *Tree23, expectedKeysLevelOrder []Felt) {
 	assert.True(t, tree.IsTwoThree(), "2-3-tree properties do not hold for tree: %v", tree.WalkKeysPostOrder())
+	if expectedKeysLevelOrder != nil {
+		assert.Equal(t, expectedKeysLevelOrder, tree.KeysInLevelOrder(), "different keys by level")
+	}
+}
+
+func require23Tree(t *testing.T, tree *Tree23, expectedKeysLevelOrder []Felt) {
+	require.True(t, tree.IsTwoThree(), "2-3-tree properties do not hold for tree: %v", tree.WalkKeysPostOrder())
 	if expectedKeysLevelOrder != nil {
 		assert.Equal(t, expectedKeysLevelOrder, tree.KeysInLevelOrder(), "different keys by level")
 	}
@@ -71,6 +80,9 @@ var isTree23TestTable = []IsTree23Test {
 	{[]KeyValue{{1, 1}, {2, 2}, {3, 3}, {4, 4}, {5, 5}},			[]Felt{3, 5, 1, 2, 3, 4, 5}},
 	{[]KeyValue{{1, 1}, {2, 2}, {3, 3}, {4, 4}, {5, 5}, {6, 6}},		[]Felt{3, 5, 1, 2, 3, 4, 5, 6}},
 	{[]KeyValue{{1, 1}, {2, 2}, {3, 3}, {4, 4}, {5, 5}, {6, 6}, {7, 7}},	[]Felt{5, 3, 7, 1, 2, 3, 4, 5, 6, 7}},
+	{[]KeyValue{{1, 1}, {2, 2}, {3, 3}, {4, 4}, {5, 5}, {6, 6}, {7, 7}, {8, 8}},			[]Felt{5, 3, 7, 1, 2, 3, 4, 5, 6, 7, 8}},
+	{[]KeyValue{{1, 1}, {2, 2}, {3, 3}, {4, 4}, {5, 5}, {6, 6}, {7, 7}, {8, 8}, {9, 9}},		[]Felt{5, 3, 7, 9, 1, 2, 3, 4, 5, 6, 7, 8, 9}},
+	{[]KeyValue{{1, 1}, {2, 2}, {3, 3}, {4, 4}, {5, 5}, {6, 6}, {7, 7}, {8, 8}, {9, 9}, {10, 10}},	[]Felt{5, 3, 7, 9, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10}},
 }
 
 var rootHashTestTable = []RootHashTest {
@@ -118,8 +130,10 @@ var insertTestTable = []UpsertTest {
 	{[]KeyValue{{1, 1}, {3, 3}, {5, 5}},	[]Felt{5, 1, 3, 5},	[]KeyValue{{6, 6}, {7, 7}, {8, 8}},		[]Felt{5, 7, 1, 3, 5, 6, 7, 8}},
 	{[]KeyValue{{1, 1}, {3, 3}, {5, 5}},	[]Felt{5, 1, 3, 5},	[]KeyValue{{6, 6}, {7, 7}, {8, 8}, {9, 9}},	[]Felt{7, 5, 9, 1, 3, 5, 6, 7, 8, 9}},
 
-	{[]KeyValue{{1, 1}, {2, 2}, {3, 3}, {4, 4}},	[]Felt{3, 1, 2, 3, 4},	[]KeyValue{{0, 0}},			[]Felt{2, 3, 0, 1, 2, 3, 4}},
-	{[]KeyValue{{1, 1}, {3, 3}, {5, 5}, {7, 7}},	[]Felt{5, 1, 3, 5, 7},	[]KeyValue{{0, 0}},			[]Felt{3, 5, 0, 1, 3, 5, 7}},
+	{[]KeyValue{{1, 1}, {2, 2}, {3, 3}, {4, 4}},		[]Felt{3, 1, 2, 3, 4},		[]KeyValue{{0, 0}},	[]Felt{2, 3, 0, 1, 2, 3, 4}},
+	{[]KeyValue{{1, 1}, {3, 3}, {5, 5}, {7, 7}},		[]Felt{5, 1, 3, 5, 7},		[]KeyValue{{0, 0}},	[]Felt{3, 5, 0, 1, 3, 5, 7}},
+
+	{[]KeyValue{{1, 1}, {3, 3}, {5, 5}, {7, 7}, {9, 9}},	[]Felt{5, 9, 1, 3, 5, 7, 9},	[]KeyValue{{0, 0}},	[]Felt{5, 3, 9, 0, 1, 3, 5, 7, 9}},
 }
 
 var updateTestTable = []UpsertTest {
@@ -185,8 +199,19 @@ func TestHeight(t *testing.T) {
 func TestIs23Tree(t *testing.T) {
 	for _, data := range isTree23TestTable {
 		tree := NewTree23(data.initialItems)
-		tree.GraphAndPicture("tree")
 		assertTwoThreeTree(t, tree, data.expectedKeysLevelOrder)
+	}
+}
+
+func Test23TreeSeries(t *testing.T) {
+	maxNumberOfNodes := 100
+	for i := 0; i < maxNumberOfNodes; i++ {
+		kvPairs := make([]KeyValue, 0)
+		for j := 0; j < i; j++ {
+			kvPairs = append(kvPairs, KeyValue{Felt(j), Felt(j)})
+		}
+		tree := NewTree23(kvPairs)
+		require23Tree(t, tree, nil)
 	}
 }
 

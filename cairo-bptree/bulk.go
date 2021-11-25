@@ -7,7 +7,7 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-func upsert(n *Node23, kvItems []KeyValue, stats *Stats) (promoted []*Node23, newFirstKey *Felt, intermediateKeys []*Felt) {
+func upsert(n *Node23, kvItems []KeyValue, stats *Stats) (nodes []*Node23, newFirstKey *Felt, intermediateKeys []*Felt) {
 	log.Tracef("upsert: n=%p kvItems=%v\n", n, kvItems)
 	ensure(sort.IsSorted(KeyValueByKey(kvItems)), "kvItems are not sorted by key")
 	if len(kvItems) == 0 && n == nil {
@@ -24,7 +24,7 @@ func upsert(n *Node23, kvItems []KeyValue, stats *Stats) (promoted []*Node23, ne
 	}
 }
 
-func upsertLeaf(n *Node23, kvItems []KeyValue, stats *Stats) (promoted []*Node23, newFirstKey *Felt, intermediateKeys []*Felt) {
+func upsertLeaf(n *Node23, kvItems []KeyValue, stats *Stats) (nodes []*Node23, newFirstKey *Felt, intermediateKeys []*Felt) {
 	ensure(n.isLeaf, "node is not leaf")
 	log.Tracef("upsertLeaf: n=%p kvItems=%v\n", n, kvItems)
 	if len(kvItems) == 0 {
@@ -53,7 +53,7 @@ func upsertLeaf(n *Node23, kvItems []KeyValue, stats *Stats) (promoted []*Node23
 			newLeaf := makeLeafNode(n.keys[:3], n.values[:3])
 			intermediateKeys = append(intermediateKeys, n.keys[2])
 			log.Tracef("upsertLeaf: newLeaf=%s\n", newLeaf)
-			promoted = append(promoted, newLeaf)
+			nodes = append(nodes, newLeaf)
 			n.keys, n.values = n.keys[2:], n.values[2:]
 			log.Tracef("upsertLeaf: updated n=%s\n", n)
 		}
@@ -62,8 +62,8 @@ func upsertLeaf(n *Node23, kvItems []KeyValue, stats *Stats) (promoted []*Node23
 			intermediateKeys = append(intermediateKeys, n.nextKey())
 		}
 		log.Tracef("upsertLeaf: last newLeaf=%s\n", newLeaf)
-		promoted = append(promoted, newLeaf)
-		return promoted, newFirstKey, intermediateKeys
+		nodes = append(nodes, newLeaf)
+		return nodes, newFirstKey, intermediateKeys
 	} else {
 		if n.nextKey() != nil {
 			intermediateKeys = append(intermediateKeys, n.nextKey())
@@ -72,7 +72,7 @@ func upsertLeaf(n *Node23, kvItems []KeyValue, stats *Stats) (promoted []*Node23
 	}
 }
 
-func upsertInternal(n *Node23, kvItems []KeyValue, stats *Stats) (promoted []*Node23, newFirstKey *Felt, intermediateKeys []*Felt) {
+func upsertInternal(n *Node23, kvItems []KeyValue, stats *Stats) (nodes []*Node23, newFirstKey *Felt, intermediateKeys []*Felt) {
 	ensure(!n.isLeaf, "node is not internal")
 	log.Tracef("upsertInternal: n=%s keyCount=%d\n", n, n.keyCount())
 	if len(kvItems) == 0 {
@@ -95,8 +95,8 @@ func upsertInternal(n *Node23, kvItems []KeyValue, stats *Stats) (promoted []*No
 	for i := len(n.children)-1; i >= 0; i-- {
 		child := n.children[i]
 		log.Tracef("upsertInternal: reverse i=%d child=%s itemSubsets[i]=%v\n", i, child, itemSubsets[i])
-		childPromotedNodes, childNewFirstKey, childIntermediateKeys := upsert(child, itemSubsets[i], stats)
-		newChildren = append(childPromotedNodes, newChildren...)
+		childNodes, childNewFirstKey, childIntermediateKeys := upsert(child, itemSubsets[i], stats)
+		newChildren = append(childNodes, newChildren...)
 		newKeys = append(childIntermediateKeys, newKeys...)
 		log.Tracef("upsertInternal: i=%d newChildren=%v newKeys=%v\n", i, newChildren, deref(newKeys))
 		if childNewFirstKey != nil {
@@ -121,14 +121,39 @@ func upsertInternal(n *Node23, kvItems []KeyValue, stats *Stats) (promoted []*No
 	log.Tracef("upsertInternal: n=%s newChildren=%v newKeys=%v\n", n, newChildren, deref(newKeys))
 	n.children = newChildren
 	if n.childrenCount() > 3 {
-		for n.childrenCount() > 3 {
-			promoted = append(promoted, makeInternalNode(n.children[:2], newKeys[:1]))
-			n.children = n.children[2:]
-			intermediateKeys = append(intermediateKeys, newKeys[1])
-			newKeys = newKeys[2:]
+		ensure(len(newKeys) >= n.childrenCount()-1 || n.childrenCount() % 2 == 0 && n.childrenCount() % len(newKeys) == 0,
+			fmt.Sprintf("upsertInternal: inconsistent #children=%d #newKeys=%d\n", n.childrenCount(), len(newKeys)))
+		var hasIntermediateKeys bool
+		if len(newKeys) == n.childrenCount()-1 || len(newKeys) == n.childrenCount() {
+			/* Groups are: 2,2...2 or 3 */
+			hasIntermediateKeys = true
+		} else {
+			/* Groups are: 2,2...2 */
+			hasIntermediateKeys = false
 		}
-		promoted = append(promoted, makeInternalNode(n.children[:], newKeys[:]))
-		return promoted, newFirstKey, intermediateKeys
+		for n.childrenCount() > 3 {
+			nodes = append(nodes, makeInternalNode(n.children[:2], newKeys[:1]))
+			n.children = n.children[2:]
+			if hasIntermediateKeys {
+				intermediateKeys = append(intermediateKeys, newKeys[1])
+				newKeys = newKeys[2:]
+			} else {
+				newKeys = newKeys[1:]
+			}
+		}
+		ensure(n.childrenCount() > 0 && len(newKeys) > 0, fmt.Sprintf("upsertInternal: PLEASE DONT HIT THIS #children=%d #newKeys=%d\n", n.childrenCount(), len(newKeys)))
+		if n.childrenCount() == 2 {
+			ensure(len(newKeys) > 0, fmt.Sprintf("upsertInternal: PLEASE DONT HIT THIS #children=%d #newKeys=%d\n", n.childrenCount(), len(newKeys)))
+			nodes = append(nodes, makeInternalNode(n.children[:], newKeys[:1]))
+			intermediateKeys = append(intermediateKeys, newKeys[1:]...)
+		} else if n.childrenCount() == 3 {
+			ensure(len(newKeys) > 1, fmt.Sprintf("upsertInternal: PLEASE DONT HIT THIS #children=%d #newKeys=%d\n", n.childrenCount(), len(newKeys)))
+			nodes = append(nodes, makeInternalNode(n.children[:], newKeys[:2]))
+			intermediateKeys = append(intermediateKeys, newKeys[2:]...)
+		} else {
+			ensure(false, fmt.Sprintf("upsertInternal: PLEASE DONT HIT THIS #children=%d #newKeys=%d\n", n.childrenCount(), len(newKeys)))
+		}
+		return nodes, newFirstKey, intermediateKeys
 	} else { // n.childrenCount() is 2 or 3
 		ensure(len(newKeys) > 0, "upsertInternal: newKeys count is zero")
 		if len(newKeys) == len(n.children) {

@@ -339,3 +339,21 @@ func FuzzUpsert(f *testing.F) {
 		require23Tree(t, tree, nil)
 	})
 }
+
+func FuzzDelete(f *testing.F) {
+	f.Fuzz(func (t *testing.T, input1, input2 []byte) {
+		//t.Parallel()
+		treeFactory := NewTree23BinaryFactory(1)
+		bytesReader1 := bytes.NewReader(input1)
+		kvStatePairs := treeFactory.NewUniqueKeyValues(bufio.NewReader(bytesReader1))
+		require.True(t, sort.IsSorted(KeyValueByKey(kvStatePairs)), "kvStatePairs is not sorted")
+		bytesReader2 := bytes.NewReader(input2)
+		keysToDelete := treeFactory.NewUniqueKeys(bufio.NewReader(bytesReader2))
+		fmt.Printf("kvStatePairs=%v keysToDelete=%v\n", kvStatePairs, keysToDelete)
+		require.True(t, sort.IsSorted(Keys(keysToDelete)), "keysToDelete is not sorted")
+		tree := NewTree23(kvStatePairs)
+		require23Tree(t, tree, nil)
+		tree = tree.DeleteNoStats(keysToDelete)
+		require23Tree(t, tree, nil)
+	})
+}

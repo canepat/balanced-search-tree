@@ -12,6 +12,7 @@ import (
 type Tree23Factory interface {
 	NewTree23(reader *bufio.Reader) *Tree23
 	NewUniqueKeyValues(reader *bufio.Reader) []KeyValue
+	NewUniqueKeys(reader *bufio.Reader) Keys
 }
 
 type Tree23BinaryFactory struct {
@@ -33,6 +34,12 @@ func (factory *Tree23BinaryFactory) NewUniqueKeyValues(reader *bufio.Reader) []K
 	kvPairs := factory.readUniqueKeyValues(reader)
 	sort.Sort(KeyValueByKey(kvPairs))
 	return kvPairs
+}
+
+func (factory *Tree23BinaryFactory) NewUniqueKeys(reader *bufio.Reader) Keys {
+	keys := factory.readUniqueKeys(reader)
+	sort.Sort(keys)
+	return keys
 }
 
 func (factory *Tree23BinaryFactory) readUniqueKeyValues(reader *bufio.Reader) []KeyValue {
@@ -63,6 +70,30 @@ func (factory *Tree23BinaryFactory) readUniqueKeyValues(reader *bufio.Reader) []
 		log.Tracef("BINARY state duplicated_keys: %d\n", duplicated_keys)
 	}
 	return kvPairs
+}
+
+func (factory *Tree23BinaryFactory) readUniqueKeys(reader *bufio.Reader) Keys {
+	keys := make(Keys, 0)
+	keyRegistry := make(map[Felt]bool)
+	buffer := make([]byte, BufferSize)
+	for {
+		bytes_read, err := reader.Read(buffer)
+		if err == io.EOF {
+			break
+		}
+		key_bytes_count := factory.keySize * (bytes_read / factory.keySize)
+		duplicated_keys := 0
+		for i := 0; i < key_bytes_count; i += factory.keySize {
+			key := factory.readKey(buffer, i)
+			if _, duplicated := keyRegistry[key]; duplicated {
+				duplicated_keys++
+				continue
+			}
+			keyRegistry[key] = true
+			keys = append(keys, Felt(key))
+		}
+	}
+	return keys
 }
 
 func (factory *Tree23BinaryFactory) readKey(buffer []byte, offset int) Felt {

@@ -244,7 +244,20 @@ func delete(n *Node23, keysToDelete []Felt, stats *Stats) (deleted *Node23, next
 		for i := len(n.children) - 1; i >= 0; i-- {
 			child, childNextKey := delete(n.children[i], keySubsets[i], stats)
 			log.Tracef("delete: n=%s child=%s childNextKey=%s\n", n, child, pointerValue(childNextKey))
-			// TODO: ignore child, childNextKey because handled in update2Node/update3Node?
+			if childNextKey != nil {
+				if i > 0 {
+					previousChild := n.children[i-1]
+					if previousChild.isLeaf {
+						ensure(len(previousChild.keys) > 0, "delete: previousChild has no keys")
+						previousChild.setNextKey(childNextKey)
+					} else {
+						ensure(len(previousChild.children) > 0, "delete: previousChild has no children")
+						previousChild.lastChild().setNextKey(childNextKey)
+					}
+				} else {
+					nextKey = childNextKey
+				}
+			}
 		}
 		switch len(n.children) {
 		case 2:
@@ -311,6 +324,7 @@ func update2Node(n *Node23) *Felt {
 		if nodeC.isEmpty() {
 			/* A is empty, a_next is the "next key"; C is empty, c_next is the "next key" */
 			n.children = n.children[:0]
+			n.keys = n.keys[:0]
 			n.isLeaf = true
 			return nodeC.nextKey()
 		} else {
@@ -386,7 +400,9 @@ func update3Node(n *Node23) *Felt {
 }
 
 func demote(n *Node23, nextKey *Felt) (*Node23, *Felt) {
-	if len(n.children) == 1 {
+	if len(n.children) == 0 {
+		return nil, nextKey
+	} else if len(n.children) == 1 {
 		return n.children[0], nextKey
 	} else if len(n.children) == 2 {
 		if n.children[0].keyCount() == 2 && n.children[1].keyCount() == 2 {

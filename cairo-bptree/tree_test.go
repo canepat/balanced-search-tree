@@ -188,7 +188,7 @@ var deleteTestTable = []DeleteTest {
 	{[]KeyValue{{1, 1}, {2, 2}, {3, 3}},			[]Felt{3, 1, 2, 3},		[]Felt{1, 2},		[]Felt{3}},
 	{[]KeyValue{{1, 1}, {2, 2}, {3, 3}},			[]Felt{3, 1, 2, 3},		[]Felt{1, 3},		[]Felt{2}},
 	{[]KeyValue{{1, 1}, {2, 2}, {3, 3}},			[]Felt{3, 1, 2, 3},		[]Felt{2, 3},		[]Felt{1}},
-	//{[]KeyValue{{1, 1}, {2, 2}, {3, 3}},			[]Felt{3, 1, 2, 3},		[]Felt{1, 2, 3},	[]Felt{}},
+	{[]KeyValue{{1, 1}, {2, 2}, {3, 3}},			[]Felt{3, 1, 2, 3},		[]Felt{1, 2, 3},	[]Felt{}},
 
 	{[]KeyValue{{1, 1}, {2, 2}, {3, 3}, {4, 4}},		[]Felt{3, 1, 2, 3, 4},		[]Felt{1},		[]Felt{3, 2, 3, 4}},
 	{[]KeyValue{{1, 1}, {2, 2}, {3, 3}, {4, 4}},		[]Felt{3, 1, 2, 3, 4},		[]Felt{2},		[]Felt{3, 1, 3, 4}},
@@ -315,7 +315,9 @@ func TestDelete(t *testing.T) {
 	for _, data := range deleteTestTable {
 		tree := NewTree23(data.initialItems)
 		assertTwoThreeTree(t, tree, data.initialKeysLevelOrder)
+		//tree.GraphAndPicture("tree_delete1")
 		tree.DeleteNoStats(data.keysToDelete)
+		//tree.GraphAndPicture("tree_delete2")
 		assertTwoThreeTree(t, tree, data.finalKeysLevelOrder)
 	}
 }

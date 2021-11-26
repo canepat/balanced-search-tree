@@ -233,57 +233,22 @@ func delete(n *Node23, keysToDelete []Felt, stats *Stats) (deleted *Node23, next
 		return n, nil
 	}
 	if n.isLeaf {
-		currentFirstKey := n.firstKey()
-		deleteLeafKeys(n, keysToDelete)
-		if n.keyCount() == 1 {
-			return nil, n.nextKey()
-		} else if n.firstKey() != currentFirstKey {
-			return n, n.firstKey()
-		} else {
-			return n, nil
-		}
+		return deleteLeaf(n, keysToDelete, stats)
 	} else {
-		keySubsets := splitKeys(n, keysToDelete)
-		for i := len(n.children) - 1; i >= 0; i-- {
-			child, childNextKey := delete(n.children[i], keySubsets[i], stats)
-			log.Tracef("delete: n=%s child=%s childNextKey=%s\n", n, child, pointerValue(childNextKey))
-			if i > 0 {
-				previousChild := n.children[i-1]
-				if child != nil && !child.isLeaf {
-					if child.childrenCount() == 0 {
-						child.keys = child.keys[:0]
-					} else if child.childrenCount() == 1 {
-						previousChild.children = append(previousChild.children, child.firstChild())
-						firstKey := child.firstChild().firstKey()
-						previousChild.keys = append(previousChild.keys, firstKey)
-						child.children = child.children[:0]
-						child.keys = child.keys[:0]
-					}
-				}
-				if childNextKey != nil {
-					if previousChild.isLeaf {
-						ensure(len(previousChild.keys) > 0, "delete: previousChild has no keys")
-						previousChild.setNextKey(childNextKey)
-					} else {
-						ensure(len(previousChild.children) > 0, "delete: previousChild has no children")
-						previousChild.lastChild().setNextKey(childNextKey)
-					}
-				}
-			} else {
-				if childNextKey != nil {
-					nextKey = childNextKey
-				}
-			}
-		}
-		switch len(n.children) {
-		case 2:
-			nextKey = update2Node(n)
-		case 3:
-			nextKey = update3Node(n)
-		default:
-			ensure(false, fmt.Sprintf("unexpected number of children in %s", n))
-		}
-		return n, nextKey
+		return deleteInternal(n, keysToDelete, stats)
+	}
+}
+
+func deleteLeaf(n *Node23, keysToDelete []Felt, stats *Stats) (deleted *Node23, nextKey *Felt) {
+	ensure(n.isLeaf, fmt.Sprintf("node %s is not leaf", n))
+	currentFirstKey := n.firstKey()
+	deleteLeafKeys(n, keysToDelete)
+	if n.keyCount() == 1 {
+		return nil, n.nextKey()
+	} else if n.firstKey() != currentFirstKey {
+		return n, n.firstKey()
+	} else {
+		return n, nil
 	}
 }
 
@@ -313,6 +278,51 @@ func deleteLeafKeys(n *Node23, keysToDelete []Felt) {
 	default:
 		ensure(false, fmt.Sprintf("unexpected number of keys in %s", n))
 	}
+}
+
+func deleteInternal(n *Node23, keysToDelete []Felt, stats *Stats) (deleted *Node23, nextKey *Felt) {
+	ensure(!n.isLeaf, fmt.Sprintf("node %s is not internal", n))
+	keySubsets := splitKeys(n, keysToDelete)
+	for i := len(n.children) - 1; i >= 0; i-- {
+		child, childNextKey := delete(n.children[i], keySubsets[i], stats)
+		log.Tracef("delete: n=%s child=%s childNextKey=%s\n", n, child, pointerValue(childNextKey))
+		if i > 0 {
+			previousChild := n.children[i-1]
+			if child != nil && !child.isLeaf {
+				if child.childrenCount() == 0 {
+					child.keys = child.keys[:0]
+				} else if child.childrenCount() == 1 {
+					previousChild.children = append(previousChild.children, child.firstChild())
+					firstKey := child.firstChild().firstKey()
+					previousChild.keys = append(previousChild.keys, firstKey)
+					child.children = child.children[:0]
+					child.keys = child.keys[:0]
+				}
+			}
+			if childNextKey != nil {
+				if previousChild.isLeaf {
+					ensure(len(previousChild.keys) > 0, "delete: previousChild has no keys")
+					previousChild.setNextKey(childNextKey)
+				} else {
+					ensure(len(previousChild.children) > 0, "delete: previousChild has no children")
+					previousChild.lastChild().setNextKey(childNextKey)
+				}
+			}
+		} else {
+			if childNextKey != nil {
+				nextKey = childNextKey
+			}
+		}
+	}
+	switch len(n.children) {
+	case 2:
+		nextKey = update2Node(n)
+	case 3:
+		nextKey = update3Node(n)
+	default:
+		ensure(false, fmt.Sprintf("unexpected number of children in %s", n))
+	}
+	return n, nextKey
 }
 
 func splitKeys(n *Node23, keysToDelete []Felt) [][]Felt {

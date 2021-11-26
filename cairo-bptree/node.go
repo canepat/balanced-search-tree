@@ -112,12 +112,19 @@ func (n *Node23) isTwoThree() bool {
 	if n.isLeaf {
 		keyCount := n.keyCount()
 		/* Any leaf node can have either 1 or 2 keys (plus next key) */
-		return keyCount == 2 || keyCount == 3
+		return keyCount == 1+1 || keyCount == 2+1
 	} else {
 		// Check that each child subtree is a 2-3 tree
-		for _, child := range n.children {
+		for i := len(n.children)-1; i >= 0; i-- {
+			child := n.children[i]
 			if !child.isTwoThree() {
 				return false
+			}
+			if child.isLeaf && i > 0 {
+				previousChild := n.children[i-1]
+				if previousChild.nextKey() != child.firstKey() {
+					return false
+				}
 			}
 		}
 		/* Any internal node can have either 2 or 3 children */
@@ -145,6 +152,11 @@ func (n *Node23) firstKey() *Felt {
 func (n *Node23) firstValue() *Felt {
 	ensure(len(n.values) > 0, "firstValue: node has no value")
 	return n.values[0]
+}
+
+func (n *Node23) firstChild() *Node23 {
+	ensure(len(n.children) > 0, "firstChild: node has no children")
+	return n.children[0]
 }
 
 func (n *Node23) lastChild() *Node23 {

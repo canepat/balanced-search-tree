@@ -153,8 +153,6 @@ var insertTestTable = []UpsertTest {
 		[]KeyValue{{0, 0}, {2, 2}, {4, 4}, {6, 6}, {8, 8}, {10, 10}, {12, 12}, {14, 14}, {16, 16}, {18, 18}, {20, 20}},
 		[]Felt{8, 16, 4, 12, 20, 0, 2, 4, 6, 8, 10, 12, 14, 16, 18, 20},
 		[]KeyValue{{1, 1}, {3, 3}, {5, 5}},
-		//[]KeyValue{{1, 1}, {3, 3}, {5, 5}, {7, 7}},
-		//[]KeyValue{{1, 1}, {3, 3}, {5, 5}, {7, 7}, {9, 9}, {11, 11}, {13, 13}, {15, 15}},
 		[]Felt{8, 4, 16, 2, 6, 12, 20, 0, 1, 2, 3, 4, 5, 6, 8, 10, 12, 14, 16, 18, 20}},
 	{
 		[]KeyValue{{4, 4}, {10, 10}, {17, 17}, {85, 85}, {104, 104}, {107, 107}, {112, 112}, {115, 115}, {136, 136}, {156, 156}, {191, 191}},
@@ -170,7 +168,7 @@ var updateTestTable = []UpsertTest {
 }
 
 var deleteTestTable = []DeleteTest {
-	/* POSITIVE TEST CASES */
+	/// POSITIVE TEST CASES
 	{[]KeyValue{},						[]Felt{},			[]Felt{},		[]Felt{}},
 
 	{[]KeyValue{{1, 1}},					[]Felt{1},			[]Felt{},		[]Felt{1}},
@@ -201,7 +199,9 @@ var deleteTestTable = []DeleteTest {
 	{[]KeyValue{{1, 1}, {2, 2}, {3, 3}, {4, 4}, {5, 5}},	[]Felt{3, 5, 1, 2, 3, 4, 5},	[]Felt{4},		[]Felt{3, 5, 1, 2, 3, 5}},
 	{[]KeyValue{{1, 1}, {2, 2}, {3, 3}, {4, 4}, {5, 5}},	[]Felt{3, 5, 1, 2, 3, 4, 5},	[]Felt{5},		[]Felt{3, 5, 1, 2, 3, 4}},
 
-	/* NEGATIVE TEST CASES */
+	{[]KeyValue{{1, 1}, {2, 2}, {3, 3}, {4, 4}, {5, 5}, {6, 6}, {7, 7}},	[]Felt{5, 3, 7, 1, 2, 3, 4, 5, 6, 7},	[]Felt{7},	[]Felt{3, 5, 1, 2, 3, 4, 5, 6}},
+
+	/// NEGATIVE TEST CASES
 	{[]KeyValue{},						[]Felt{},			[]Felt{1},		[]Felt{}},
 	{[]KeyValue{{1, 1}},					[]Felt{1},			[]Felt{2},		[]Felt{1}},
 	{[]KeyValue{{1, 1}, {2, 2}},				[]Felt{1, 2},			[]Felt{3},		[]Felt{1, 2}},

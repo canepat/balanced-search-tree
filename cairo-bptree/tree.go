@@ -132,10 +132,7 @@ func (t *Tree23) DeleteNoStats(keyToDelete []Felt) *Tree23 {
 func (t *Tree23) Delete(keyToDelete []Felt, stats *Stats) *Tree23 {
 	log.Debugf("Delete: t=%p root=%p keyToDelete=%v\n", t, t.root, keyToDelete)
 	newRoot, nextKey := delete(t.root, keyToDelete, stats)
-	t.root = newRoot
-	if nextKey != nil {
-		updateNextKey(t.root, nextKey)
-	}
+	t.root, _ = demote(newRoot, nextKey)
 	return t
 }
 

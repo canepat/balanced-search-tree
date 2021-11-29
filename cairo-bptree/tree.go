@@ -5,7 +5,7 @@ import (
 )
 
 type Stats struct {
-	ExposedCount uint64
+	ExposedCount uint
 }
 
 type Tree23 struct {
@@ -29,14 +29,14 @@ func (t *Tree23) Size() int {
 	return len(node_items)
 }
 
-func (t *Tree23) CountNewHashes() (hashCount uint) {
+func (t *Tree23) CountNewHashed() (hashedCount uint) {
 	node_items := t.WalkPostOrder(func(n *Node23) interface{} { return n })
 	for i := range node_items {
 		if node_items[i].(*Node23).exposed {
-			hashCount++
+			hashedCount++
 		}
 	}
-	return hashCount
+	return hashedCount
 }
 
 func (t *Tree23) RootHash() []byte {

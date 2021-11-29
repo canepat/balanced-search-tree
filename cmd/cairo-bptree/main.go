@@ -95,14 +95,15 @@ func main() {
 	state.GraphAndPicture("state")
 	stateChanges := treeFactory.NewUniqueKeyValues(stateChangesFile.NewReader())
 
-	log.Printf("UPSERT: Number of nodes in the current state tree: %d\n", state.Size())
-	log.Printf("UPSERT: Number of state changes: %d\n", len(stateChanges))
+	log.Printf("UPSERT: number of nodes in the current state tree: %d\n", state.Size())
+	log.Printf("UPSERT: number of state changes: %d\n", len(stateChanges))
 
 	stats := &cairo_bptree.Stats{}
 	newState := state.Upsert(stateChanges, stats)
 	newState.GraphAndPicture("newState")
 
-	log.Printf("UPSERT: Number of nodes in the next state tree: %d\n", newState.Size())
-	log.Printf("UPSERT: Number of re-hashes for the next state: %d\n", newState.CountNewHashes())
-	log.Printf("UPSERT: Number of nodes exposed: %d\n", stats.ExposedCount)
+	log.Printf("UPSERT: number of nodes in the next state tree: %d\n", newState.Size())
+	log.Printf("UPSERT: number of re-hashed nodes for the next state: %d\n", newState.CountNewHashed())
+	log.Printf("UPSERT: number of existing nodes exposed: %d\n", stats.ExposedCount)
+	log.Printf("UPSERT: number of new nodes exposed: %d\n", newState.CountNewHashed()-stats.ExposedCount)
 }

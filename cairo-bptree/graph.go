@@ -73,7 +73,13 @@ func (g *Node23Graph) saveDot(filename string, debug bool) {
 			}
 		}
 		//s := fmt.Sprintln(/*n.path*/n.rawPointer(), " [label=\"", left, "|{<C>", nodeId, "|", down, "}|", right, "\" style=filled fillcolor=\"", colors[0], "\"];")
-		s := fmt.Sprintf("%d [label=\"%s|{<C>%s|%s}|%s\" style=filled fillcolor=\"%s\"];\n", n.rawPointer(), left, nodeId, down, right, colors[0])
+		var color string
+		if n.exposed {
+			color = colors[1]
+		} else {
+			color = colors[0]
+		}
+		s := fmt.Sprintf("%d [label=\"%s|{<C>%s|%s}|%s\" style=filled fillcolor=\"%s\"];\n", n.rawPointer(), left, nodeId, down, right, color)
 		if _, err := f.WriteString(s); err != nil {
 			log.Fatal(err)
 		}

@@ -99,9 +99,8 @@ func promote(nodes []*Node23, intermediateKeys []*Felt) *Node23 {
 }
 
 func (n *Node23) reset() {
-	if n.isLeaf {
-		n.exposed = false
-	} else {
+	n.exposed = false
+	if !n.isLeaf {
 		for _, child := range n.children {
 			child.reset()
 		}

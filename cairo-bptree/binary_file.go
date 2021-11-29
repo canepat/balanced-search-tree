@@ -7,6 +7,7 @@ import (
 	"io"
 	"io/ioutil"
 	"os"
+	"strconv"
 
 	log "github.com/sirupsen/logrus"
 )
@@ -24,7 +25,7 @@ type BinaryFile struct {
 func CreateRandomBinaryFile(prefix string, size int64) *BinaryFile {
 	ensure(size%BLOCKSIZE == 0, fmt.Sprintf("CreateRandomBinaryFile: expected size multiple of 4k bytes, got %d\n", size))
 	
-	file, err := ioutil.TempFile(".", prefix)
+	file, err := ioutil.TempFile(".", prefix + strconv.FormatInt(size, 10) + "_")
 	ensure(err == nil, fmt.Sprintf("CreateRandomBinaryFile: cannot create file %s, error %s\n", file.Name(), err))
 
 	err = file.Truncate(size)

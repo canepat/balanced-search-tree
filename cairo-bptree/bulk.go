@@ -299,16 +299,37 @@ func deleteInternal(n *Node23, keysToDelete []Felt, stats *Stats) (deleted *Node
 					child.keys = child.keys[:0]
 				}
 			}
+			if child == nil {
+				ensure(len(n.keys) >= i, "delete: n has insufficient keys")
+				n.keys = append(n.keys[:i-1], n.keys[i:]...)
+			}
 			if childNextKey != nil {
 				if previousChild.isLeaf {
 					ensure(len(previousChild.keys) > 0, "delete: previousChild has no keys")
 					previousChild.setNextKey(childNextKey)
+					if n.keyCount() >= i {
+						n.keys[i-1] = childNextKey
+					}
 				} else {
 					ensure(len(previousChild.children) > 0, "delete: previousChild has no children")
 					previousChild.lastChild().setNextKey(childNextKey)
 				}
 			}
 		} else {
+			nextChild := n.children[i+1]
+			if child != nil && !child.isLeaf {
+				if child.childrenCount() == 0 {
+					child.keys = child.keys[:0]
+				} else if child.childrenCount() == 1 {
+					nextChild.children = append([]*Node23{child.firstChild()}, nextChild.children...)
+					nextKey := child.firstChild().nextKey()
+					nextChild.keys = append([]*Felt{nextKey}, nextChild.keys...)
+					child.children = child.children[:0]
+				}
+			}
+			if child == nil && n.keyCount() > 0 {
+				n.keys = n.keys[1:]
+			}
 			if childNextKey != nil {
 				nextKey = childNextKey
 			}
@@ -352,11 +373,17 @@ func update2Node(n *Node23) *Felt {
 			n.children = n.children[:0]
 			n.keys = n.keys[:0]
 			n.isLeaf = true
-			return nodeC.nextKey()
+			if nodeC.isLeaf {
+				return nodeC.nextKey()
+			}
+			return nil
 		} else {
 			/* A is empty, a_next is the "next key"; C is not empty */
 			n.children = n.children[1:]
-			return nodeA.nextKey()
+			if nodeA.isLeaf {
+				return nodeA.nextKey()
+			}
+			return nil
 		}
 	} else {
 		if nodeC.isEmpty() {
@@ -393,11 +420,17 @@ func update3Node(n *Node23) *Felt {
 				/* A is empty, a_next is the "next key"; B is not empty; C is empty, c_next is the "next key" */
 				n.children = n.children[1:2]
 				nodeB.setNextKey(nodeC.nextKey())
-				return nodeA.nextKey()
+				if nodeA.isLeaf {
+					return nodeA.nextKey()
+				}
+				return nil
 			} else {
 				/* A is empty, a_next is the "next key"; B is not empty; C is not empty */
 				n.children = n.children[1:]
-				return nodeA.nextKey()
+				if nodeA.isLeaf {
+					return nodeA.nextKey()
+				}
+				return nil
 			}
 		}
 	} else {

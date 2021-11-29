@@ -110,16 +110,25 @@ func (n *Node23) reset() {
 
 func (n *Node23) isTwoThree() bool {
 	if n.isLeaf {
+		/* Any leaf node shall have no children */
+		if n.childrenCount() != 0 {
+			return false
+		}
 		keyCount := n.keyCount()
 		/* Any leaf node can have either 1 or 2 keys (plus next key) */
 		return keyCount == 1+1 || keyCount == 2+1
 	} else {
-		// Check that each child subtree is a 2-3 tree
+		/* Any internal node can have either 2 or 3 children */
+		if n.childrenCount() != 2 && n.childrenCount() != 3 {
+			return false
+		}
 		for i := len(n.children)-1; i >= 0; i-- {
 			child := n.children[i]
+			// Check that each child subtree is a 2-3 tree
 			if !child.isTwoThree() {
 				return false
 			}
+			// Check that each leaf node except first has previous leaf with correct next key
 			if child.isLeaf && i > 0 {
 				previousChild := n.children[i-1]
 				if previousChild.nextKey() != child.firstKey() {
@@ -127,8 +136,33 @@ func (n *Node23) isTwoThree() bool {
 				}
 			}
 		}
-		/* Any internal node can have either 2 or 3 children */
-		return n.childrenCount() == 2 || n.childrenCount() == 3
+		// Check that each internal node has keys corresponding to leaf next keys
+		if !n.isLeaf {
+			leafNextKeyItems := n.walkPostOrder(func(nn *Node23) interface{} {
+				if nn.isLeaf {
+					return nn.nextKey()
+				} else {
+					return nil
+				}
+			})
+			for _, keyPtr := range n.keys {
+				hasNextKey := false
+				for _, leafNextKeyItem := range leafNextKeyItems {
+					if leafNextKeyItem == nil {
+						continue
+					}
+					leafNextKeyPtr := leafNextKeyItem.(*Felt)
+					if leafNextKeyPtr != nil && *keyPtr == *leafNextKeyPtr {
+						hasNextKey = true
+						break
+					}
+				}
+				if !hasNextKey {
+					return false
+				}
+			}
+		}
+		return true
 	}
 }
 
@@ -205,7 +239,7 @@ func (n *Node23) height() int {
 	if n.isLeaf {
 		return 1
 	} else {
-		ensure(len(n.children) > 0, "heigth: internal node has zero children")
+		ensure(len(n.children) > 0, "height: internal node has zero children")
 		return n.children[0].height() + 1
 	}
 }

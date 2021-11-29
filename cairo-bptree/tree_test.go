@@ -17,14 +17,14 @@ import (
 )
 
 func assertTwoThreeTree(t *testing.T, tree *Tree23, expectedKeysLevelOrder []Felt) {
-	assert.True(t, tree.IsTwoThree(), "2-3-tree properties do not hold for tree: %v", tree.WalkKeysPostOrder())
+	assert.True(t, tree.IsTwoThree(), "2-3-tree properties do not hold for tree: %v", tree.KeysInLevelOrder())
 	if expectedKeysLevelOrder != nil {
 		assert.Equal(t, expectedKeysLevelOrder, tree.KeysInLevelOrder(), "different keys by level")
 	}
 }
 
 func require23Tree(t *testing.T, tree *Tree23, expectedKeysLevelOrder []Felt) {
-	require.True(t, tree.IsTwoThree(), "2-3-tree properties do not hold for tree: %v", tree.WalkKeysPostOrder())
+	require.True(t, tree.IsTwoThree(), "2-3-tree properties do not hold for tree: %v", tree.KeysInLevelOrder())
 	if expectedKeysLevelOrder != nil {
 		assert.Equal(t, expectedKeysLevelOrder, tree.KeysInLevelOrder(), "different keys by level")
 	}
@@ -190,16 +190,22 @@ var deleteTestTable = []DeleteTest {
 
 	{[]KeyValue{{1, 1}, {2, 2}, {3, 3}, {4, 4}},		[]Felt{3, 1, 2, 3, 4},		[]Felt{1},		[]Felt{3, 2, 3, 4}},
 	{[]KeyValue{{1, 1}, {2, 2}, {3, 3}, {4, 4}},		[]Felt{3, 1, 2, 3, 4},		[]Felt{2},		[]Felt{3, 1, 3, 4}},
-	{[]KeyValue{{1, 1}, {2, 2}, {3, 3}, {4, 4}},		[]Felt{3, 1, 2, 3, 4},		[]Felt{3},		[]Felt{3, 1, 2, 4}},
+	{[]KeyValue{{1, 1}, {2, 2}, {3, 3}, {4, 4}},		[]Felt{3, 1, 2, 3, 4},		[]Felt{3},		[]Felt{4, 1, 2, 4}},
 	{[]KeyValue{{1, 1}, {2, 2}, {3, 3}, {4, 4}},		[]Felt{3, 1, 2, 3, 4},		[]Felt{4},		[]Felt{3, 1, 2, 3}},
 
 	{[]KeyValue{{1, 1}, {2, 2}, {3, 3}, {4, 4}, {5, 5}},	[]Felt{3, 5, 1, 2, 3, 4, 5},	[]Felt{1},		[]Felt{3, 5, 2, 3, 4, 5}},
 	{[]KeyValue{{1, 1}, {2, 2}, {3, 3}, {4, 4}, {5, 5}},	[]Felt{3, 5, 1, 2, 3, 4, 5},	[]Felt{2},		[]Felt{3, 5, 1, 3, 4, 5}},
-	{[]KeyValue{{1, 1}, {2, 2}, {3, 3}, {4, 4}, {5, 5}},	[]Felt{3, 5, 1, 2, 3, 4, 5},	[]Felt{3},		[]Felt{3, 5, 1, 2, 4, 5}},
+	{[]KeyValue{{1, 1}, {2, 2}, {3, 3}, {4, 4}, {5, 5}},	[]Felt{3, 5, 1, 2, 3, 4, 5},	[]Felt{3},		[]Felt{4, 5, 1, 2, 4, 5}},
 	{[]KeyValue{{1, 1}, {2, 2}, {3, 3}, {4, 4}, {5, 5}},	[]Felt{3, 5, 1, 2, 3, 4, 5},	[]Felt{4},		[]Felt{3, 5, 1, 2, 3, 5}},
-	{[]KeyValue{{1, 1}, {2, 2}, {3, 3}, {4, 4}, {5, 5}},	[]Felt{3, 5, 1, 2, 3, 4, 5},	[]Felt{5},		[]Felt{3, 5, 1, 2, 3, 4}},
+	{[]KeyValue{{1, 1}, {2, 2}, {3, 3}, {4, 4}, {5, 5}},	[]Felt{3, 5, 1, 2, 3, 4, 5},	[]Felt{5},		[]Felt{3, 1, 2, 3, 4}},
 
 	{[]KeyValue{{1, 1}, {2, 2}, {3, 3}, {4, 4}, {5, 5}, {6, 6}, {7, 7}},	[]Felt{5, 3, 7, 1, 2, 3, 4, 5, 6, 7},	[]Felt{7},	[]Felt{3, 5, 1, 2, 3, 4, 5, 6}},
+	{
+		[]KeyValue{{16, 16}, {25, 25}, {155, 155}, {182, 182}, {184, 184}, {210, 210}, {215, 215}},
+		[]Felt{184, 155, 215, 16, 25, 155, 182, 184, 210, 215},
+		[]Felt{155, 182},
+		[]Felt{184, 215, 16, 25, 184, 210, 215},
+	},
 
 	/// NEGATIVE TEST CASES
 	{[]KeyValue{},						[]Felt{},			[]Felt{1},		[]Felt{}},
@@ -211,6 +217,7 @@ var deleteTestTable = []DeleteTest {
 
 	/* MIXED TEST CASES */
 	// TODO
+	//{[]KeyValue{{0, 0}, {46, 46}, {50, 50}, {89, 89}, {134, 134}, {218, 218}},		[]Felt{},	[]Felt{46, 50, 89, 134, 218},	[]Felt{}},
 }
 
 func init() {
@@ -266,6 +273,7 @@ func TestUpsertUpdate(t *testing.T) {
 	for _, data := range updateTestTable {
 		tree := NewTree23(data.initialItems)
 		assertTwoThreeTree(t, tree, data.initialKeysLevelOrder)
+		// TODO: add check for old values
 		tree.UpsertNoStats(data.deltaItems)
 		assertTwoThreeTree(t, tree, data.finalKeysLevelOrder)
 		// TODO: add check for new values
@@ -299,13 +307,13 @@ func TestUpsertNextKey(t *testing.T) {
 	
 	data = []KeyValue{{100, 100}, {101, 101}, {200, 200}, {201, 201}, {202, 202}}
 	tn = tn.UpsertNoStats(data)
-	tn.GraphAndPicture("tn3")
-	//assertTwoThreeTree(t, tn, []Felt{2, 2, 100, 0, 1, 2, 3, 4, 5, 6, 7, 100, 101, 200, 201, 202})
+	//tn.GraphAndPicture("tn3")
+	assertTwoThreeTree(t, tn, []Felt{4, 100, 2, 6, 200, 202, 0, 1, 2, 3, 4, 5, 6, 7, 100, 101, 200, 201, 202})
 	
-	//data = []KeyValue{{10, 10}, {150, 150}, {250, 250}, {251, 251}, {252, 252}}
-	//tn = tn.UpsertNoStats(data)
+	data = []KeyValue{{10, 10}, {150, 150}, {250, 250}, {251, 251}, {252, 252}}
+	tn = tn.UpsertNoStats(data)
 	//tn.GraphAndPicture("tn4")
-	//assertTwoThreeTree(t, tn, []Felt{0, 1, 2, 3, 4, 5, 6, 7, 10, 100, 101, 150, 200, 201, 202, 250, 251, 252})
+	assertTwoThreeTree(t, tn, []Felt{100, 4, 200, 2, 6, 10, 150, 202, 251, 0, 1, 2, 3, 4, 5, 6, 7, 10, 100, 101, 150, 200, 201, 202, 250, 251, 252})
 }
 
 func TestUpsertFirstKey(t *testing.T) {

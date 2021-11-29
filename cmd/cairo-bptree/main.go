@@ -67,10 +67,13 @@ func main() {
 	log.SetLevel(level)
 
 	log.Printf("Generate state and state-changes files: %t\n", options.generate)
-	log.Printf("Size of the state file in bytes: %d\n", options.stateFileSize)
-	log.Printf("Size of the state-changes file in bytes: %d\n", options.stateChangesFileSize)
-	log.Printf("Name of the state file: %s\n", options.stateFileName)
-	log.Printf("Name of the state-changes file: %s\n", options.stateChangesFileName)
+	if options.generate {
+		log.Printf("Size of the state file in bytes: %d\n", options.stateFileSize)
+		log.Printf("Size of the state-changes file in bytes: %d\n", options.stateChangesFileSize)
+	} else {
+		log.Printf("Name of the state file: %s\n", options.stateFileName)
+		log.Printf("Name of the state-changes file: %s\n", options.stateChangesFileName)
+	}
 	log.Printf("Size of the key in bytes: %d\n", options.keySize)
 	log.Printf("Trees are nested: %t\n", options.nested)
 	log.Printf("Log level: %s\n", options.logLevel)
@@ -89,10 +92,12 @@ func main() {
 
 	treeFactory := cairo_bptree.NewTree23BinaryFactory(int(options.keySize))
 	state := treeFactory.NewTree23(stateFile.NewReader())
+	state.GraphAndPicture("state")
 	stateChanges := treeFactory.NewUniqueKeyValues(stateChangesFile.NewReader())
 
 	stats := &cairo_bptree.Stats{}
 	newState := state.Upsert(stateChanges, stats)
+	newState.GraphAndPicture("newState")
 
 	log.Printf("UPSERT: Number of nodes in the current state tree: %d\n", state.Size())
 	log.Printf("UPSERT: Number of state changes: %d\n", len(stateChanges))

@@ -12,7 +12,7 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-const BLOCKSIZE int64 = 32 //4096
+const BLOCKSIZE int64 = 8 //32 //4096
 
 type BinaryFile struct {
 	path		string
@@ -25,11 +25,13 @@ type BinaryFile struct {
 func CreateRandomBinaryFile(prefix string, size int64) *BinaryFile {
 	ensure(size%BLOCKSIZE == 0, fmt.Sprintf("CreateRandomBinaryFile: expected size multiple of 4k bytes, got %d\n", size))
 	
-	file, err := ioutil.TempFile(".", prefix + strconv.FormatInt(size, 10) + "_")
+	file, err := ioutil.TempFile("testdata/", prefix + strconv.FormatInt(size, 10) + "_")
 	ensure(err == nil, fmt.Sprintf("CreateRandomBinaryFile: cannot create file %s, error %s\n", file.Name(), err))
 
 	err = file.Truncate(size)
 	ensure(err == nil, fmt.Sprintf("CreateRandomBinaryFile: cannot truncate file %s to %d, error %s\n", file.Name(), size, err))
+
+	log.Infof("CreateRandomBinaryFile: created file %s\n", file.Name())
 
 	buffer := make([]byte, BLOCKSIZE)
 	for i := int64(0); i < size; i+= BLOCKSIZE {

@@ -24,18 +24,19 @@ func (keys Keys) Contains(key Felt) bool {
 	return false
 }
 
-type KeyValue struct {
-	key   Felt
-	value Felt
+type KeyValues struct {
+	keys   []*Felt
+	values []*Felt
 }
 
-type KeyValueByKey []KeyValue
+func (kv KeyValues) Len() int { return len(kv.keys) }
 
-func (kv KeyValueByKey) Len() int { return len(kv) }
+func (kv KeyValues) Less(i, j int) bool { return *kv.keys[i] < *kv.keys[j] }
 
-func (kv KeyValueByKey) Less(i, j int) bool { return kv[i].key < kv[j].key }
-
-func (kv KeyValueByKey) Swap(i, j int) { kv[i], kv[j] = kv[j], kv[i] }
+func (kv KeyValues) Swap(i, j int) {
+	kv.keys[i], kv.keys[j] = kv.keys[j], kv.keys[i]
+	kv.values[i], kv.values[j] = kv.values[j], kv.values[i]
+}
 
 type Node23 struct {
 	isLeaf   bool

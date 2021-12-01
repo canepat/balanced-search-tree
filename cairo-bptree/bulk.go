@@ -7,10 +7,10 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-func upsert(n *Node23, kvItems []KeyValue, stats *Stats) (nodes []*Node23, newFirstKey *Felt, intermediateKeys []*Felt) {
+func upsert(n *Node23, kvItems KeyValues, stats *Stats) (nodes []*Node23, newFirstKey *Felt, intermediateKeys []*Felt) {
 	log.Tracef("upsert: n=%p kvItems=%v\n", n, kvItems)
-	ensure(sort.IsSorted(KeyValueByKey(kvItems)), "kvItems are not sorted by key")
-	if len(kvItems) == 0 && n == nil {
+	ensure(sort.IsSorted(kvItems), "kvItems are not sorted by key")
+	if kvItems.Len() == 0 && n == nil {
 		return []*Node23{n}, nil, []*Felt{}
 	}
 	if n == nil {
@@ -24,10 +24,10 @@ func upsert(n *Node23, kvItems []KeyValue, stats *Stats) (nodes []*Node23, newFi
 	}
 }
 
-func upsertLeaf(n *Node23, kvItems []KeyValue, stats *Stats) (nodes []*Node23, newFirstKey *Felt, intermediateKeys []*Felt) {
+func upsertLeaf(n *Node23, kvItems KeyValues, stats *Stats) (nodes []*Node23, newFirstKey *Felt, intermediateKeys []*Felt) {
 	ensure(n.isLeaf, "node is not leaf")
 	log.Tracef("upsertLeaf: n=%p kvItems=%v\n", n, kvItems)
-	if len(kvItems) == 0 {
+	if kvItems.Len() == 0 {
 		if n.nextKey() != nil {
 			intermediateKeys = append(intermediateKeys, n.nextKey())
 		}
@@ -72,10 +72,10 @@ func upsertLeaf(n *Node23, kvItems []KeyValue, stats *Stats) (nodes []*Node23, n
 	}
 }
 
-func upsertInternal(n *Node23, kvItems []KeyValue, stats *Stats) (nodes []*Node23, newFirstKey *Felt, intermediateKeys []*Felt) {
+func upsertInternal(n *Node23, kvItems KeyValues, stats *Stats) (nodes []*Node23, newFirstKey *Felt, intermediateKeys []*Felt) {
 	ensure(!n.isLeaf, "node is not internal")
 	log.Tracef("upsertInternal: n=%s keyCount=%d\n", n, n.keyCount())
-	if len(kvItems) == 0 {
+	if kvItems.Len() == 0 {
 		if n.lastChild().nextKey() != nil {
 			intermediateKeys = append(intermediateKeys, n.lastChild().nextKey())
 		}
@@ -166,11 +166,11 @@ func upsertInternal(n *Node23, kvItems []KeyValue, stats *Stats) (nodes []*Node2
 	}
 }
 
-func addOrReplaceKeys(n *Node23, kvItems []KeyValue) {
+func addOrReplaceKeys(n *Node23, kvItems KeyValues) {
 	ensure(n.isLeaf, "addOrReplaceKeys: node is not leaf")
 	ensure(len(n.keys) > 0 && len(n.values) > 0, "addOrReplaceKeys: node keys/values are empty")
 	//ensure(len(kvItems) > 0, "addOrReplaceKeys: kvItems is empty")
-	log.Debugf("addOrReplaceKeys: keys=%v-%v values=%v-%v #kvItems=%d\n", deref(n.keys), n.keys, deref(n.values), n.values, len(kvItems))
+	log.Debugf("addOrReplaceKeys: keys=%v-%v values=%v-%v #kvItems=%d\n", deref(n.keys), n.keys, deref(n.values), n.values, kvItems.Len())
 
 	nextKey, nextValue := n.nextKey(), n.nextValue()
 	log.Tracef("addOrReplaceKeys: nextKey=%p nextValue=%p\n", nextKey, nextValue)
@@ -182,22 +182,16 @@ func addOrReplaceKeys(n *Node23, kvItems []KeyValue) {
 	// TODO: change algorithm
 	// kvItems are ordered by key, search there using n.keys that are 1 or 2 by design, insert n.keys[] if not already present
 	// change kvItems to KeyValues struct composed by keys []Felt, values []Felt
-	for _, kvPair := range kvItems {
-		key, value := kvPair.key, kvPair.value
-		keyFound := false
-		for i, nKey := range n.keys {
-			ensure(nKey != nil, fmt.Sprintf("addOrReplaceKeys: key[%d] is nil in %p", i, n))
-			log.Tracef("addOrReplaceKeys: key=%d value=%d nKey=%d\n", key, value, *nKey)
-			if *nKey == key {
-				keyFound = true
-				n.values[i] = &value
-				break
-			}
-		}
-		if !keyFound {
-			n.keys = append(n.keys, &key)
-			n.values = append(n.values, &value)
-		}
+	switch (n.keyCount()) {
+	case 0:
+		n.keys = append(n.keys, kvItems.keys...)
+		n.values = append(n.values, kvItems.values...)
+	case 1:
+		addOrReplaceLeaf1(n, kvItems)
+	case 2:
+		addOrReplaceLeaf2(n, kvItems)
+	default:
+		ensure(false, fmt.Sprintf("addOrReplaceKeys: invalid key count %d", n.keyCount()))
 	}
 	log.Tracef("addOrReplaceKeys: keys=%v-%v values=%v-%v\n", deref(n.keys), n.keys, deref(n.values), n.values)
 
@@ -208,16 +202,96 @@ func addOrReplaceKeys(n *Node23, kvItems []KeyValue) {
 	log.Debugf("addOrReplaceKeys: keys=%v-%v values=%v-%v\n", deref(n.keys), n.keys, deref(n.values), n.values)
 }
 
-func splitItems(n *Node23, kvItems []KeyValue) [][]KeyValue {
+func addOrReplaceLeaf1(n *Node23, kvItems KeyValues) {
+	ensure(n.isLeaf, "addOrReplaceLeaf1: node is not leaf")
+	ensure(n.keyCount() == 1, "addOrReplaceLeaf1: leaf has not 1 *canonical* key")
+
+	key0, value0 := n.keys[0], n.values[0]
+	index0 := sort.Search(kvItems.Len(), func(i int) bool { return *kvItems.keys[i] >= *key0 })
+	if index0 < kvItems.Len() {
+		// insert keys/values concatenating new ones around key0
+		n.keys = append(make([]*Felt, 0), kvItems.keys[:index0]...)
+		if *kvItems.keys[index0] != *key0 {
+			n.keys = append(n.keys, key0)
+		}
+		n.keys = append(n.keys, kvItems.keys[index0:]...)
+
+		n.values = append(make([]*Felt, 0), kvItems.values[:index0]...)
+		if *kvItems.keys[index0] != *key0 {
+			n.values = append(n.values, value0)
+		}
+		n.values = append(n.values, kvItems.values[index0:]...)
+	} else {
+		// key0 greater than any input key
+		n.keys = append(kvItems.keys, key0)
+		n.values = append(kvItems.values, value0)
+	}
+}
+
+func addOrReplaceLeaf2(n *Node23, kvItems KeyValues) {
+	ensure(n.isLeaf, "addOrReplaceLeaf2: node is not leaf")
+	ensure(n.keyCount() == 2, "addOrReplaceLeaf2: leaf has not 2 *canonical* keys")
+
+	key0, value0, key1, value1 := n.keys[0], n.values[0], n.keys[1], n.values[1]
+	index0 := sort.Search(kvItems.Len(), func(i int) bool { return *kvItems.keys[i] >= *key0 })
+	index1 := sort.Search(kvItems.Len(), func(i int) bool { return *kvItems.keys[i] >= *key1 })
+	ensure(index1 >= index0, "addOrReplaceLeaf2: keys not ordered")
+	if index0 < kvItems.Len() {
+		if index1 < kvItems.Len() {
+			// insert keys/values concatenating new ones around key0 and key1
+			n.keys = append(make([]*Felt, 0), kvItems.keys[:index0]...)
+			if *kvItems.keys[index0] != *key0 {
+				n.keys = append(n.keys, key0)
+			}
+			n.keys = append(n.keys, kvItems.keys[index0:index1]...)
+			if *kvItems.keys[index1] != *key1 {
+				n.keys = append(n.keys, key1)
+			}
+			n.keys = append(n.keys, kvItems.keys[index1:]...)
+
+			n.values = append(make([]*Felt, 0), kvItems.values[:index0]...)
+			if *kvItems.keys[index0] != *key0 {
+				n.values = append(n.values, value0)
+			}
+			n.values = append(n.values, kvItems.values[index0:index1]...)
+			if *kvItems.keys[index1] != *key1 {
+				n.values = append(n.values, value1)
+			}
+			n.values = append(n.values, kvItems.values[index1:]...)
+		} else {
+			// insert keys/values concatenating new ones around key0, then add key1
+			n.keys = append(make([]*Felt, 0), kvItems.keys[:index0]...)
+			if *kvItems.keys[index0] != *key0 {
+				n.keys = append(n.keys, key0)
+			}
+			n.keys = append(n.keys, kvItems.keys[index0:]...)
+			n.keys = append(n.keys, key1)
+	
+			n.values = append(make([]*Felt, 0), kvItems.values[:index0]...)
+			if *kvItems.keys[index0] != *key0 {
+				n.values = append(n.values, value0)
+			}
+			n.values = append(n.values, kvItems.values[index0:]...)
+			n.values = append(n.values, value1)
+		}
+	} else {
+		ensure(index1 == index0, "addOrReplaceLeaf2: keys not ordered")
+		// both key0 and key1 greater than any input key
+		n.keys = append(kvItems.keys, key0, key1)
+		n.values = append(kvItems.values, value0, value1)
+	}
+}
+
+func splitItems(n *Node23, kvItems KeyValues) []KeyValues {
 	ensure(!n.isLeaf, "splitItems: node is not internal")
 	ensure(len(n.keys) > 0, fmt.Sprintf("splitItems: internal node %s has no keys", n))
 	log.Tracef("splitItems: keys=%v-%v kvItems=%v\n", deref(n.keys), n.keys, kvItems)
-	itemSubsets := make([][]KeyValue, 0)
+	itemSubsets := make([]KeyValues, 0)
 	for i, key := range n.keys {
-		splitIndex := sort.Search(len(kvItems), func(i int) bool { return kvItems[i].key >= *key })
+		splitIndex := sort.Search(kvItems.Len(), func(i int) bool { return *kvItems.keys[i] >= *key })
 		log.Tracef("splitItems: key=%d-(%p) splitIndex=%d\n", *key, key, splitIndex)
-		itemSubsets = append(itemSubsets, kvItems[:splitIndex])
-		kvItems = kvItems[splitIndex:]
+		itemSubsets = append(itemSubsets, KeyValues{kvItems.keys[:splitIndex], kvItems.values[:splitIndex]})
+		kvItems = KeyValues{kvItems.keys[splitIndex:], kvItems.values[splitIndex:]}
 		if i == len(n.keys)-1 {
 			itemSubsets = append(itemSubsets, kvItems)
 		}

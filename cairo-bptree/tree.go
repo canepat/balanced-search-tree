@@ -16,17 +16,18 @@ func NewEmptyTree23() *Tree23 {
 	return &Tree23{}
 }
 
-func NewTree23(kvItems []KeyValue) *Tree23 {
-	log.Infof("NewTree23: creating tree with #kvItems=%v\n", len(kvItems))
+func NewTree23(kvItems KeyValues) *Tree23 {
+	log.Infof("NewTree23: creating tree with #kvItems=%v\n", kvItems.Len())
 	tree := new(Tree23).Upsert(kvItems, &Stats{})
 	tree.reset()
-	log.Infof("NewTree23: created tree root=%s with #kvItems=%v\n", tree.root, len(kvItems))
+	log.Infof("NewTree23: created tree root=%s with #kvItems=%v\n", tree.root, kvItems.Len())
 	return tree
 }
 
 func (t *Tree23) Size() int {
-	node_items := t.WalkPostOrder(func(n *Node23) interface{} { return n })
-	return len(node_items)
+	count := 0
+	t.WalkPostOrder(func(n *Node23) interface{} { count++; return nil })
+	return count
 }
 
 func (t *Tree23) CountNewHashed() (hashedCount uint) {
@@ -107,11 +108,11 @@ func (t *Tree23) WalkKeysPostOrder() []Felt {
 	return keys
 }
 
-func (t *Tree23) UpsertNoStats(kvItems []KeyValue) *Tree23 {
+func (t *Tree23) UpsertNoStats(kvItems KeyValues) *Tree23 {
 	return t.Upsert(kvItems, &Stats{})
 }
 
-func (t *Tree23) Upsert(kvItems []KeyValue, stats *Stats) *Tree23 {
+func (t *Tree23) Upsert(kvItems KeyValues, stats *Stats) *Tree23 {
 	log.Debugf("Upsert: t=%p root=%p kvItems=%v\n", t, t.root, kvItems)
 	promoted, _, intermediateKeys := upsert(t.root, kvItems, stats)
 	log.Tracef("Upsert: promoted=%v\n", promoted)

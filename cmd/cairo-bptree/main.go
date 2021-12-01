@@ -9,11 +9,10 @@ import (
 )
 
 const DEFAULT_GENERATE bool = true
-//const DEFAULT_STATE_FILE_SIZE uint64 = 16384 //256
-//const DEFAULT_STATE_CHANGES_FILE_SIZE uint64 = 4096 //64
 const DEFAULT_KEY_SIZE uint = 8 // TODO: 4 and change Felt to []byte
 const DEFAULT_NESTED bool = false
 const DEFAULT_LOG_LEVEL string = "INFO"
+const DEFAULT_GRAPH bool = false
 
 var options Options
 
@@ -35,6 +34,7 @@ func init() {
 	flag.UintVar(&options.keySize, "keySize", DEFAULT_KEY_SIZE, "the key size in bytes")
 	flag.BoolVar(&options.nested, "nested", DEFAULT_NESTED, "flag indicating if tree should be nested or not")
 	flag.StringVar(&options.logLevel, "logLevel", DEFAULT_LOG_LEVEL, "the logging level")
+	flag.BoolVar(&options.graph, "graph", DEFAULT_GRAPH, "flag indicating if tree graph should be saved or not")
 }
 
 type Options struct {
@@ -46,6 +46,7 @@ type Options struct {
 	keySize			uint
 	nested			bool
 	logLevel		string
+	graph			bool
 }
 
 func main() {
@@ -92,18 +93,24 @@ func main() {
 
 	treeFactory := cairo_bptree.NewTree23BinaryFactory(int(options.keySize))
 	state := treeFactory.NewTree23(stateFile.NewReader())
-	state.GraphAndPicture("state")
 	stateChanges := treeFactory.NewUniqueKeyValues(stateChangesFile.NewReader())
 
 	log.Printf("UPSERT: number of nodes in the current state tree: %d\n", state.Size())
-	log.Printf("UPSERT: number of state changes: %d\n", len(stateChanges))
+	log.Printf("UPSERT: number of state changes: %d\n", stateChanges.Len())
+
+	if options.graph {
+		state.GraphAndPicture("state")
+	}
 
 	stats := &cairo_bptree.Stats{}
 	newState := state.Upsert(stateChanges, stats)
-	newState.GraphAndPicture("newState")
 
 	log.Printf("UPSERT: number of nodes in the next state tree: %d\n", newState.Size())
 	log.Printf("UPSERT: number of re-hashed nodes for the next state: %d\n", newState.CountNewHashed())
 	log.Printf("UPSERT: number of existing nodes exposed: %d\n", stats.ExposedCount)
 	log.Printf("UPSERT: number of new nodes exposed: %d\n", newState.CountNewHashed()-stats.ExposedCount)
+
+	if options.graph {
+		newState.GraphAndPicture("newState")
+	}
 }

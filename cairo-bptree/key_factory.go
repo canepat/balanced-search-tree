@@ -5,75 +5,60 @@ import (
 	"encoding/binary"
 	"io"
 	"sort"
-
-	log "github.com/sirupsen/logrus"
 )
 
-type Tree23Factory interface {
-	NewTree23(reader *bufio.Reader) *Tree23
+type KeyFactory interface {
 	NewUniqueKeyValues(reader *bufio.Reader) KeyValues
 	NewUniqueKeys(reader *bufio.Reader) Keys
 }
 
-type Tree23BinaryFactory struct {
+type KeyBinaryFactory struct {
 	keySize int
 }
 
-func NewTree23BinaryFactory(keySize int) Tree23Factory {
-	return &Tree23BinaryFactory{keySize: keySize}
+func NewKeyBinaryFactory(keySize int) KeyFactory {
+	return &KeyBinaryFactory{keySize: keySize}
 }
 
-func (factory *Tree23BinaryFactory) NewTree23(reader *bufio.Reader) *Tree23 {
-	kvPairs := factory.readUniqueKeyValues(reader)
-	sort.Sort(kvPairs)
-	log.Debugf("Number of keys for bulk loading: %d\n", kvPairs.Len())
-	return NewTree23(kvPairs)
-}
-
-func (factory *Tree23BinaryFactory) NewUniqueKeyValues(reader *bufio.Reader) KeyValues {
+func (factory *KeyBinaryFactory) NewUniqueKeyValues(reader *bufio.Reader) KeyValues {
 	kvPairs := factory.readUniqueKeyValues(reader)
 	sort.Sort(kvPairs)
 	return kvPairs
 }
 
-func (factory *Tree23BinaryFactory) NewUniqueKeys(reader *bufio.Reader) Keys {
+func (factory *KeyBinaryFactory) NewUniqueKeys(reader *bufio.Reader) Keys {
 	keys := factory.readUniqueKeys(reader)
 	sort.Sort(keys)
 	return keys
 }
 
-func (factory *Tree23BinaryFactory) readUniqueKeyValues(reader *bufio.Reader) KeyValues {
+func (factory *KeyBinaryFactory) readUniqueKeyValues(reader *bufio.Reader) KeyValues {
 	kvPairs := KeyValues{make([]*Felt, 0), make([]*Felt, 0)}
 	keyRegistry := make(map[Felt]bool)
 	buffer := make([]byte, BufferSize)
 	for {
 		bytes_read, err := reader.Read(buffer)
-		log.Tracef("BINARY state bytes read: %d err: %v\n", bytes_read, err)
 		if err == io.EOF {
 			break
 		}
 		key_bytes_count := factory.keySize * (bytes_read / factory.keySize)
 		duplicated_keys := 0
-		log.Tracef("BINARY state key_bytes_count: %d\n", key_bytes_count)
 		for i := 0; i < key_bytes_count; i += factory.keySize {
 			key := factory.readKey(buffer, i)
-			log.Tracef("BINARY state key: %d\n", key)
 			if _, duplicated := keyRegistry[key]; duplicated {
 				duplicated_keys++
 				continue
 			}
 			keyRegistry[key] = true
-			log.Debugf("BINARY state unique key: %d\n", key)
 			value := key // Shortcut: value equal to key
 			kvPairs.keys = append(kvPairs.keys, &key)
 			kvPairs.values = append(kvPairs.values, &value)
 		}
-		log.Tracef("BINARY state duplicated_keys: %d\n", duplicated_keys)
 	}
 	return kvPairs
 }
 
-func (factory *Tree23BinaryFactory) readUniqueKeys(reader *bufio.Reader) Keys {
+func (factory *KeyBinaryFactory) readUniqueKeys(reader *bufio.Reader) Keys {
 	keys := make(Keys, 0)
 	keyRegistry := make(map[Felt]bool)
 	buffer := make([]byte, BufferSize)
@@ -97,7 +82,7 @@ func (factory *Tree23BinaryFactory) readUniqueKeys(reader *bufio.Reader) Keys {
 	return keys
 }
 
-func (factory *Tree23BinaryFactory) readKey(buffer []byte, offset int) Felt {
+func (factory *KeyBinaryFactory) readKey(buffer []byte, offset int) Felt {
 	keySlice := buffer[offset:offset+factory.keySize]
 	switch factory.keySize {
 	case 1:

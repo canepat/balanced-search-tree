@@ -3,8 +3,6 @@ package cairo_bptree
 import (
 	"fmt"
 	"unsafe"
-
-	log "github.com/sirupsen/logrus"
 )
 
 type Keys []Felt
@@ -66,9 +64,8 @@ func makeInternalNode(children []*Node23, keys []*Felt) *Node23 {
 func makeLeafNode(keys, values []*Felt) *Node23 {
 	ensure(len(keys) > 0, "number of keys is zero")
 	ensure(len(keys) == len(values), "keys and values have different cardinality")
-	leafKeys := append(make([]*Felt, 0, len(keys)), keys...)
-	leafValues := append(make([]*Felt, 0, len(values)), values...)
-	n := &Node23{isLeaf: true, children: make([]*Node23, 0), keys: leafKeys, values: leafValues, exposed: true}
+
+	n := &Node23{isLeaf: true, children: make([]*Node23, 0), keys: keys, values: values, exposed: true}
 	return n
 }
 
@@ -78,9 +75,7 @@ func makeEmptyLeafNode() *Node23 {
 }
 
 func promote(nodes []*Node23, intermediateKeys []*Felt) *Node23 {
-	log.Debugf("promote: #nodes=%d nodes=%v\n", len(nodes), nodes)
 	promotedRoot := makeInternalNode(nodes, intermediateKeys)
-	log.Debugf("promote: promotedRoot=%s\n", promotedRoot)
 	if promotedRoot.childrenCount() > 3 {
 		intermediateNodes := make([]*Node23, 0)
 		promotedKeys := make([]*Felt, 0)
@@ -91,10 +86,8 @@ func promote(nodes []*Node23, intermediateKeys []*Felt) *Node23 {
 			promotedRoot.keys = promotedRoot.keys[2:]
 		}
 		intermediateNodes = append(intermediateNodes, makeInternalNode(promotedRoot.children[:], promotedRoot.keys[:]))
-		log.Debugf("promote: #keys>2 promotedRoot=%s\n", promotedRoot)
 		return promote(intermediateNodes, promotedKeys)
 	} else {
-		log.Debugf("promote: #keys<=2 promotedRoot=%s\n", promotedRoot)
 		return promotedRoot
 	}
 }
@@ -263,7 +256,6 @@ func (n *Node23) walkPostOrder(w Walker) []interface{} {
 	items := make([]interface{}, 0)
 	if !n.isLeaf {
 		for _, child := range n.children {
-			log.Tracef("walkPostOrder: n=%s child=%s\n", n, child)
 			child_items := child.walkPostOrder(w)
 			items = append(items, child_items...)
 		}
@@ -280,6 +272,7 @@ func (n *Node23) walkNodesPostOrder() []*Node23 {
 	}
 	return nodes
 }
+
 func (n *Node23) hashNode() []byte {
 	if n.isLeaf {
 		return n.hashLeaf()

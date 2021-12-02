@@ -5,14 +5,11 @@ import (
 	"crypto/rand"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"os"
 	"strconv"
-
-	log "github.com/sirupsen/logrus"
 )
 
-const BLOCKSIZE int64 = 8 //32 //4096
+const BLOCKSIZE int64 = 4096
 
 type BinaryFile struct {
 	path		string
@@ -22,27 +19,26 @@ type BinaryFile struct {
 	opened		bool
 }
 
-func CreateRandomBinaryFile(prefix string, size int64) *BinaryFile {
-	ensure(size%BLOCKSIZE == 0, fmt.Sprintf("CreateRandomBinaryFile: expected size multiple of 4k bytes, got %d\n", size))
-	
-	file, err := ioutil.TempFile("testdata/", prefix + strconv.FormatInt(size, 10) + "_")
+func CreateRandomBinaryFile(path string, size int64) *BinaryFile {
+	size = (size / BLOCKSIZE + 1) * BLOCKSIZE
+
+	file, err := os.OpenFile(path + strconv.FormatInt(size, 10), os.O_WRONLY|os.O_CREATE, 0644)
 	ensure(err == nil, fmt.Sprintf("CreateRandomBinaryFile: cannot create file %s, error %s\n", file.Name(), err))
 
 	err = file.Truncate(size)
 	ensure(err == nil, fmt.Sprintf("CreateRandomBinaryFile: cannot truncate file %s to %d, error %s\n", file.Name(), size, err))
 
-	log.Infof("CreateRandomBinaryFile: created file %s\n", file.Name())
-
+	bufferedFile := bufio.NewWriter(file)
 	buffer := make([]byte, BLOCKSIZE)
 	for i := int64(0); i < size; i+= BLOCKSIZE {
 		bytesRead, err := io.ReadFull(rand.Reader, buffer)
 		ensure(bytesRead == len(buffer), fmt.Sprintf("insufficient bytes read %d, error %s\n", bytesRead, err))
-		log.Tracef("CreateRandomBinaryFile: bytesRead=%d\n", bytesRead)
-		bytesWritten, err := file.Write(buffer)
+		bytesWritten, err := bufferedFile.Write(buffer)
 
 		ensure(bytesWritten == len(buffer), fmt.Sprintf("insufficient bytes written %d, error %s\n", bytesWritten, err))
-		log.Tracef("CreateRandomBinaryFile: bytesWritten=%d\n", bytesWritten)
 	}
+	err = bufferedFile.Flush()
+	ensure(err == nil, fmt.Sprintf("error during flushing %s\n", err))
 	file.Seek(0, 0)
 
 	binaryFile := &BinaryFile{
@@ -71,6 +67,14 @@ func OpenBinaryFile(path string) *BinaryFile {
 		opened: true,
 	}
 	return binaryFile
+}
+
+func (f *BinaryFile) Name() string {
+	return f.path
+}
+
+func (f *BinaryFile) Size() int64 {
+	return f.size
 }
 
 func (f *BinaryFile) NewReader() *bufio.Reader {

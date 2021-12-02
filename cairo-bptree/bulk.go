@@ -8,15 +8,14 @@ import (
 )
 
 func upsert(n *Node23, kvItems KeyValues, stats *Stats) (nodes []*Node23, newFirstKey *Felt, intermediateKeys []*Felt) {
-	log.Tracef("upsert: n=%p kvItems=%v\n", n, kvItems)
 	ensure(sort.IsSorted(kvItems), "kvItems are not sorted by key")
+
 	if kvItems.Len() == 0 && n == nil {
 		return []*Node23{n}, nil, []*Felt{}
 	}
 	if n == nil {
 		n = makeEmptyLeafNode()
 	}
-	log.Tracef("upsert: n=%p\n", n)
 	if n.isLeaf {
 		return upsertLeaf(n, kvItems, stats)
 	} else {
@@ -26,7 +25,7 @@ func upsert(n *Node23, kvItems KeyValues, stats *Stats) (nodes []*Node23, newFir
 
 func upsertLeaf(n *Node23, kvItems KeyValues, stats *Stats) (nodes []*Node23, newFirstKey *Felt, intermediateKeys []*Felt) {
 	ensure(n.isLeaf, "node is not leaf")
-	log.Tracef("upsertLeaf: n=%p kvItems=%v\n", n, kvItems)
+
 	if kvItems.Len() == 0 {
 		if n.nextKey() != nil {
 			intermediateKeys = append(intermediateKeys, n.nextKey())
@@ -40,28 +39,24 @@ func upsertLeaf(n *Node23, kvItems KeyValues, stats *Stats) (nodes []*Node23, ne
 	}
 
 	currentFirstKey := n.firstKey()
-	addOrReplaceKeys(n, kvItems)
+	addOrReplaceLeaf(n, kvItems)
 	if n.firstKey() != currentFirstKey {
 		newFirstKey = n.firstKey()
 	} else {
 		newFirstKey = nil
 	}
 
-	log.Tracef("upsertLeaf: keyCount=%d firstKey=%s nextKey=%s\n", n.keyCount(), pointerValue(n.firstKey()), pointerValue(n.nextKey()))
 	if n.keyCount() > 3 {
 		for n.keyCount() > 3 {
 			newLeaf := makeLeafNode(n.keys[:3], n.values[:3])
 			intermediateKeys = append(intermediateKeys, n.keys[2])
-			log.Tracef("upsertLeaf: newLeaf=%s\n", newLeaf)
 			nodes = append(nodes, newLeaf)
 			n.keys, n.values = n.keys[2:], n.values[2:]
-			log.Tracef("upsertLeaf: updated n=%s\n", n)
 		}
 		newLeaf := makeLeafNode(n.keys[:], n.values[:])
 		if n.nextKey() != nil {
 			intermediateKeys = append(intermediateKeys, n.nextKey())
 		}
-		log.Tracef("upsertLeaf: last newLeaf=%s\n", newLeaf)
 		nodes = append(nodes, newLeaf)
 		return nodes, newFirstKey, intermediateKeys
 	} else {
@@ -74,7 +69,7 @@ func upsertLeaf(n *Node23, kvItems KeyValues, stats *Stats) (nodes []*Node23, ne
 
 func upsertInternal(n *Node23, kvItems KeyValues, stats *Stats) (nodes []*Node23, newFirstKey *Felt, intermediateKeys []*Felt) {
 	ensure(!n.isLeaf, "node is not internal")
-	log.Tracef("upsertInternal: n=%s keyCount=%d\n", n, n.keyCount())
+
 	if kvItems.Len() == 0 {
 		if n.lastChild().nextKey() != nil {
 			intermediateKeys = append(intermediateKeys, n.lastChild().nextKey())
@@ -89,16 +84,13 @@ func upsertInternal(n *Node23, kvItems KeyValues, stats *Stats) (nodes []*Node23
 
 	itemSubsets := splitItems(n, kvItems)
 
-	log.Tracef("upsertInternal: n=%s itemSubsets=%v\n", n, itemSubsets)
 	newChildren := make([]*Node23, 0)
 	newKeys := make([]*Felt, 0)
 	for i := len(n.children)-1; i >= 0; i-- {
 		child := n.children[i]
-		log.Tracef("upsertInternal: reverse i=%d child=%s itemSubsets[i]=%v\n", i, child, itemSubsets[i])
 		childNodes, childNewFirstKey, childIntermediateKeys := upsert(child, itemSubsets[i], stats)
 		newChildren = append(childNodes, newChildren...)
 		newKeys = append(childIntermediateKeys, newKeys...)
-		log.Tracef("upsertInternal: i=%d newChildren=%v newKeys=%v\n", i, newChildren, deref(newKeys))
 		if childNewFirstKey != nil {
 			if i > 0 {
 				// Handle newFirstKey here
@@ -110,19 +102,16 @@ func upsertInternal(n *Node23, kvItems KeyValues, stats *Stats) (nodes []*Node23
 					ensure(len(previousChild.children) > 0, "upsertInternal: previousChild has no children")
 					previousChild.lastChild().setNextKey(childNewFirstKey)
 				}
-				log.Tracef("upsertInternal: i=%d update last next key childNewFirstKey=%s\n", i, pointerValue(childNewFirstKey))
 			} else {
 				// Propagate newFirstKey up
 				newFirstKey = childNewFirstKey
-				log.Tracef("upsertInternal: i=%d propagated newFirstKey=%s\n", i, pointerValue(newFirstKey))
 			}
 		}
 	}
-	log.Tracef("upsertInternal: n=%s newChildren=%v newKeys=%v\n", n, newChildren, deref(newKeys))
+
 	n.children = newChildren
 	if n.childrenCount() > 3 {
-		ensure(len(newKeys) >= n.childrenCount()-1 || n.childrenCount() % 2 == 0 && n.childrenCount() % len(newKeys) == 0,
-			fmt.Sprintf("upsertInternal: inconsistent #children=%d #newKeys=%d\n", n.childrenCount(), len(newKeys)))
+		ensure(len(newKeys) >= n.childrenCount()-1 || n.childrenCount() % 2 == 0 && n.childrenCount() % len(newKeys) == 0, "upsertInternal: inconsistent #children vs #newKeys")
 		var hasIntermediateKeys bool
 		if len(newKeys) == n.childrenCount()-1 || len(newKeys) == n.childrenCount() {
 			/* Groups are: 2,2...2 or 3 */
@@ -141,17 +130,17 @@ func upsertInternal(n *Node23, kvItems KeyValues, stats *Stats) (nodes []*Node23
 				newKeys = newKeys[1:]
 			}
 		}
-		ensure(n.childrenCount() > 0 && len(newKeys) > 0, fmt.Sprintf("upsertInternal: PLEASE DONT HIT THIS #children=%d #newKeys=%d\n", n.childrenCount(), len(newKeys)))
+		ensure(n.childrenCount() > 0 && len(newKeys) > 0, "upsertInternal: inconsistent #children vs #newKeys")
 		if n.childrenCount() == 2 {
-			ensure(len(newKeys) > 0, fmt.Sprintf("upsertInternal: PLEASE DONT HIT THIS #children=%d #newKeys=%d\n", n.childrenCount(), len(newKeys)))
+			ensure(len(newKeys) > 0, "upsertInternal: inconsistent #newKeys")
 			nodes = append(nodes, makeInternalNode(n.children[:], newKeys[:1]))
 			intermediateKeys = append(intermediateKeys, newKeys[1:]...)
 		} else if n.childrenCount() == 3 {
-			ensure(len(newKeys) > 1, fmt.Sprintf("upsertInternal: PLEASE DONT HIT THIS #children=%d #newKeys=%d\n", n.childrenCount(), len(newKeys)))
+			ensure(len(newKeys) > 1, "upsertInternal: inconsistent #newKeys")
 			nodes = append(nodes, makeInternalNode(n.children[:], newKeys[:2]))
 			intermediateKeys = append(intermediateKeys, newKeys[2:]...)
 		} else {
-			ensure(false, fmt.Sprintf("upsertInternal: PLEASE DONT HIT THIS #children=%d #newKeys=%d\n", n.childrenCount(), len(newKeys)))
+			ensure(false, fmt.Sprintf("upsertInternal: inconsistent #children=%d #newKeys=%d\n", n.childrenCount(), len(newKeys)))
 		}
 		return nodes, newFirstKey, intermediateKeys
 	} else { // n.childrenCount() is 2 or 3
@@ -166,22 +155,18 @@ func upsertInternal(n *Node23, kvItems KeyValues, stats *Stats) (nodes []*Node23
 	}
 }
 
-func addOrReplaceKeys(n *Node23, kvItems KeyValues) {
-	ensure(n.isLeaf, "addOrReplaceKeys: node is not leaf")
-	ensure(len(n.keys) > 0 && len(n.values) > 0, "addOrReplaceKeys: node keys/values are empty")
-	//ensure(len(kvItems) > 0, "addOrReplaceKeys: kvItems is empty")
-	log.Debugf("addOrReplaceKeys: keys=%v-%v values=%v-%v #kvItems=%d\n", deref(n.keys), n.keys, deref(n.values), n.values, kvItems.Len())
+func addOrReplaceLeaf(n *Node23, kvItems KeyValues) {
+	ensure(n.isLeaf, "addOrReplaceLeaf: node is not leaf")
+	ensure(len(n.keys) > 0 && len(n.values) > 0, "addOrReplaceLeaf: node keys/values are empty")
+	ensure(len(kvItems.keys) > 0 && len(kvItems.keys) == len(kvItems.values), "addOrReplaceLeaf: invalid kvItems")
 
+	// Temporarily remove next key/value
 	nextKey, nextValue := n.nextKey(), n.nextValue()
-	log.Tracef("addOrReplaceKeys: nextKey=%p nextValue=%p\n", nextKey, nextValue)
 
 	n.keys = n.keys[:len(n.keys)-1]
 	n.values = n.values[:len(n.values)-1]
-	log.Tracef("addOrReplaceKeys: keys=%v-%v values=%v-%v kvItems=%v\n", deref(n.keys), n.keys, deref(n.values), n.values, kvItems)
 
-	// TODO: change algorithm
-	// kvItems are ordered by key, search there using n.keys that are 1 or 2 by design, insert n.keys[] if not already present
-	// change kvItems to KeyValues struct composed by keys []Felt, values []Felt
+	// kvItems are ordered by key: search there using n.keys that here are 1 or 2 by design (0 just for empty tree)
 	switch (n.keyCount()) {
 	case 0:
 		n.keys = append(n.keys, kvItems.keys...)
@@ -191,15 +176,14 @@ func addOrReplaceKeys(n *Node23, kvItems KeyValues) {
 	case 2:
 		addOrReplaceLeaf2(n, kvItems)
 	default:
-		ensure(false, fmt.Sprintf("addOrReplaceKeys: invalid key count %d", n.keyCount()))
+		ensure(false, fmt.Sprintf("addOrReplaceLeaf: invalid key count %d", n.keyCount()))
 	}
-	log.Tracef("addOrReplaceKeys: keys=%v-%v values=%v-%v\n", deref(n.keys), n.keys, deref(n.values), n.values)
 
-	sort.Slice(n.keys, func(i, j int) bool { return *n.keys[i] < *n.keys[j] })
-	sort.Slice(n.values, func(i, j int) bool { return *n.values[i] < *n.values[j] })
+	//ensure(sort.IsSorted(Keys(deref(n.keys))), "addOrReplaceLeaf: keys not ordered")
+	
+	// Restore next key/value
 	n.keys = append(n.keys, nextKey)
 	n.values = append(n.values, nextValue)
-	log.Debugf("addOrReplaceKeys: keys=%v-%v values=%v-%v\n", deref(n.keys), n.keys, deref(n.values), n.values)
 }
 
 func addOrReplaceLeaf1(n *Node23, kvItems KeyValues) {
@@ -209,7 +193,7 @@ func addOrReplaceLeaf1(n *Node23, kvItems KeyValues) {
 	key0, value0 := n.keys[0], n.values[0]
 	index0 := sort.Search(kvItems.Len(), func(i int) bool { return *kvItems.keys[i] >= *key0 })
 	if index0 < kvItems.Len() {
-		// insert keys/values concatenating new ones around key0
+		// Insert keys/values concatenating new ones around key0
 		n.keys = append(make([]*Felt, 0), kvItems.keys[:index0]...)
 		if *kvItems.keys[index0] != *key0 {
 			n.keys = append(n.keys, key0)
@@ -238,7 +222,7 @@ func addOrReplaceLeaf2(n *Node23, kvItems KeyValues) {
 	ensure(index1 >= index0, "addOrReplaceLeaf2: keys not ordered")
 	if index0 < kvItems.Len() {
 		if index1 < kvItems.Len() {
-			// insert keys/values concatenating new ones around key0 and key1
+			// Insert keys/values concatenating new ones around key0 and key1
 			n.keys = append(make([]*Felt, 0), kvItems.keys[:index0]...)
 			if *kvItems.keys[index0] != *key0 {
 				n.keys = append(n.keys, key0)
@@ -259,7 +243,7 @@ func addOrReplaceLeaf2(n *Node23, kvItems KeyValues) {
 			}
 			n.values = append(n.values, kvItems.values[index1:]...)
 		} else {
-			// insert keys/values concatenating new ones around key0, then add key1
+			// Insert keys/values concatenating new ones around key0, then add key1
 			n.keys = append(make([]*Felt, 0), kvItems.keys[:index0]...)
 			if *kvItems.keys[index0] != *key0 {
 				n.keys = append(n.keys, key0)
@@ -276,7 +260,7 @@ func addOrReplaceLeaf2(n *Node23, kvItems KeyValues) {
 		}
 	} else {
 		ensure(index1 == index0, "addOrReplaceLeaf2: keys not ordered")
-		// both key0 and key1 greater than any input key
+		// Both key0 and key1 greater than any input key
 		n.keys = append(kvItems.keys, key0, key1)
 		n.values = append(kvItems.values, value0, value1)
 	}
@@ -284,12 +268,11 @@ func addOrReplaceLeaf2(n *Node23, kvItems KeyValues) {
 
 func splitItems(n *Node23, kvItems KeyValues) []KeyValues {
 	ensure(!n.isLeaf, "splitItems: node is not internal")
-	ensure(len(n.keys) > 0, fmt.Sprintf("splitItems: internal node %s has no keys", n))
-	log.Tracef("splitItems: keys=%v-%v kvItems=%v\n", deref(n.keys), n.keys, kvItems)
+	ensure(len(n.keys) > 0, "splitItems: internal node has no keys")
+
 	itemSubsets := make([]KeyValues, 0)
 	for i, key := range n.keys {
 		splitIndex := sort.Search(kvItems.Len(), func(i int) bool { return *kvItems.keys[i] >= *key })
-		log.Tracef("splitItems: key=%d-(%p) splitIndex=%d\n", *key, key, splitIndex)
 		itemSubsets = append(itemSubsets, KeyValues{kvItems.keys[:splitIndex], kvItems.values[:splitIndex]})
 		kvItems = KeyValues{kvItems.keys[splitIndex:], kvItems.values[splitIndex:]}
 		if i == len(n.keys)-1 {
@@ -423,7 +406,7 @@ func deleteInternal(n *Node23, keysToDelete []Felt, stats *Stats) (deleted *Node
 func splitKeys(n *Node23, keysToDelete []Felt) [][]Felt {
 	ensure(!n.isLeaf, "splitKeys: node is not internal")
 	ensure(len(n.keys) > 0, fmt.Sprintf("splitKeys: internal node %s has no keys", n))
-	log.Tracef("splitKeys: keys=%v-%v keysToDelete=%v\n", deref(n.keys), n.keys, keysToDelete)
+
 	keySubsets := make([][]Felt, 0)
 	for i, key := range n.keys {
 		splitIndex := sort.Search(len(keysToDelete), func(i int) bool { return keysToDelete[i] >= *key })

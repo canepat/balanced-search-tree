@@ -350,12 +350,12 @@ func TestDelete(t *testing.T) {
 func FuzzUpsert(f *testing.F) {
 	f.Fuzz(func (t *testing.T, input1, input2 []byte) {
 		//t.Parallel()
-		treeFactory := NewTree23BinaryFactory(1)
+		keyFactory := NewKeyBinaryFactory(1)
 		bytesReader1 := bytes.NewReader(input1)
-		kvStatePairs := treeFactory.NewUniqueKeyValues(bufio.NewReader(bytesReader1))
+		kvStatePairs := keyFactory.NewUniqueKeyValues(bufio.NewReader(bytesReader1))
 		require.True(t, sort.IsSorted(kvStatePairs), "kvStatePairs is not sorted")
 		bytesReader2 := bytes.NewReader(input2)
-		kvStateChangesPairs := treeFactory.NewUniqueKeyValues(bufio.NewReader(bytesReader2))
+		kvStateChangesPairs := keyFactory.NewUniqueKeyValues(bufio.NewReader(bytesReader2))
 		fmt.Printf("kvStatePairs=%v kvStateChangesPairs=%v\n", kvStatePairs, kvStateChangesPairs)
 		require.True(t, sort.IsSorted(kvStateChangesPairs), "kvStateChangesPairs is not sorted")
 		tree := NewTree23(kvStatePairs)
@@ -368,12 +368,12 @@ func FuzzUpsert(f *testing.F) {
 func FuzzDelete(f *testing.F) {
 	f.Fuzz(func (t *testing.T, input1, input2 []byte) {
 		//t.Parallel()
-		treeFactory := NewTree23BinaryFactory(1)
+		keyFactory := NewKeyBinaryFactory(1)
 		bytesReader1 := bytes.NewReader(input1)
-		kvStatePairs := treeFactory.NewUniqueKeyValues(bufio.NewReader(bytesReader1))
+		kvStatePairs := keyFactory.NewUniqueKeyValues(bufio.NewReader(bytesReader1))
 		require.True(t, sort.IsSorted(kvStatePairs), "kvStatePairs is not sorted")
 		bytesReader2 := bytes.NewReader(input2)
-		keysToDelete := treeFactory.NewUniqueKeys(bufio.NewReader(bytesReader2))
+		keysToDelete := keyFactory.NewUniqueKeys(bufio.NewReader(bytesReader2))
 		fmt.Printf("kvStatePairs=%v keysToDelete=%v\n", kvStatePairs, keysToDelete)
 		require.True(t, sort.IsSorted(Keys(keysToDelete)), "keysToDelete is not sorted")
 		tree := NewTree23(kvStatePairs)
@@ -381,4 +381,37 @@ func FuzzDelete(f *testing.F) {
 		tree = tree.DeleteNoStats(keysToDelete)
 		require23Tree(t, tree, nil)
 	})
+}
+
+func BenchmarkNewTree23(b *testing.B) {
+	const dataCount = 1_000_000
+	data := KeyValues{make([]*Felt, dataCount), make([]*Felt, dataCount)}
+	for i := 0; i < dataCount; i++ {
+		key, value := Felt(i*2), Felt(i*2)
+		data.keys[i], data.values[i] = &key, &value
+	}
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		NewTree23(data)
+	}
+}
+
+func BenchmarkUpsert(b *testing.B) {
+	dataCount := 5_000_000
+	data := KeyValues{make([]*Felt, dataCount), make([]*Felt, dataCount)}
+	for i := 0; i < dataCount; i++ {
+		key, value := Felt(i*2), Felt(i*2)
+		data.keys[i], data.values[i] = &key, &value
+	}
+	tree := NewTree23(data)
+	dataCount = 500_000
+	data = KeyValues{make([]*Felt, dataCount), make([]*Felt, dataCount)}
+	for i := 0; i < dataCount; i++ {
+		key, value := Felt(i*2+1), Felt(i*2+1)
+		data.keys[i], data.values[i] = &key, &value
+	}
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		tree.UpsertNoStats(data)
+	}
 }

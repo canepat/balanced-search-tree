@@ -1,6 +1,8 @@
 package cairo_bptree
 
 import (
+	"fmt"
+
 	log "github.com/sirupsen/logrus"
 )
 
@@ -17,11 +19,13 @@ func NewEmptyTree23() *Tree23 {
 }
 
 func NewTree23(kvItems KeyValues) *Tree23 {
-	log.Infof("NewTree23: creating tree with #kvItems=%v\n", kvItems.Len())
 	tree := new(Tree23).Upsert(kvItems, &Stats{})
 	tree.reset()
-	log.Infof("NewTree23: created tree root=%s with #kvItems=%v\n", tree.root, kvItems.Len())
 	return tree
+}
+
+func (t *Tree23) String() string {
+	return fmt.Sprintf("root={keys=%v #children=%d} size=%d", deref(t.root.keys), t.root.childrenCount(), t.Size())
 }
 
 func (t *Tree23) Size() int {
@@ -30,13 +34,13 @@ func (t *Tree23) Size() int {
 	return count
 }
 
-func (t *Tree23) CountNewHashed() (hashedCount uint) {
-	node_items := t.WalkPostOrder(func(n *Node23) interface{} { return n })
-	for i := range node_items {
-		if node_items[i].(*Node23).exposed {
+func (t *Tree23) CountNewHashes() (hashedCount uint) {
+	t.WalkPostOrder(func(n *Node23) interface{} {
+		if n.exposed {
 			hashedCount++
 		}
-	}
+		return nil
+	})
 	return hashedCount
 }
 
@@ -98,13 +102,11 @@ func (t *Tree23) WalkKeysPostOrder() []Felt {
 	key_pointers := make([]*Felt, 0)
 	t.WalkPostOrder(func(n *Node23) interface{} {
 		if n.isLeaf && n.keyCount() > 0 {
-			log.Tracef("WalkKeysPostOrder: L n=%p n.keys=%v\n", n, n.keys)
 			key_pointers = append(key_pointers, n.keys[:len(n.keys)-1]...)
 		}
 		return nil
 	})
 	keys := deref(key_pointers)
-	log.Tracef("WalkKeysPostOrder: keys=%v\n", keys)
 	return keys
 }
 
@@ -113,16 +115,13 @@ func (t *Tree23) UpsertNoStats(kvItems KeyValues) *Tree23 {
 }
 
 func (t *Tree23) Upsert(kvItems KeyValues, stats *Stats) *Tree23 {
-	log.Debugf("Upsert: t=%p root=%p kvItems=%v\n", t, t.root, kvItems)
 	promoted, _, intermediateKeys := upsert(t.root, kvItems, stats)
-	log.Tracef("Upsert: promoted=%v\n", promoted)
 	ensure(len(promoted) > 0, "nodes length is zero")
 	if len(promoted) == 1 {
 		t.root = promoted[0]
 	} else {
 		t.root = promote(promoted, intermediateKeys)
 	}
-	log.Debugf("Upsert: t=%p root=%p\n", t, t.root)
 	return t
 }
 

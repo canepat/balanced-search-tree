@@ -7,7 +7,7 @@ import (
 	"bufio"
 	"bytes"
 	"encoding/hex"
-	"fmt"
+//	"fmt"
 	"sort"
 	"testing"
 
@@ -17,14 +17,14 @@ import (
 )
 
 func assertTwoThreeTree(t *testing.T, tree *Tree23, expectedKeysLevelOrder []Felt) {
-	assert.True(t, tree.IsTwoThree(), "2-3-tree properties do not hold for tree: %v", tree.KeysInLevelOrder())
+	assert.True(t, tree.IsValid(), "2-3-tree properties do not hold for tree: %v", tree.KeysInLevelOrder())
 	if expectedKeysLevelOrder != nil {
 		assert.Equal(t, expectedKeysLevelOrder, tree.KeysInLevelOrder(), "different keys by level")
 	}
 }
 
-func require23Tree(t *testing.T, tree *Tree23, expectedKeysLevelOrder []Felt) {
-	require.True(t, tree.IsTwoThree(), "2-3-tree properties do not hold for tree: %v", tree.KeysInLevelOrder())
+func require23Tree(t *testing.T, tree *Tree23, expectedKeysLevelOrder []Felt, input1, input2 []byte) {
+	require.True(t, tree.IsValid(), "2-3-tree properties do not hold for tree: %v [%v %v]", tree.KeysInLevelOrder(), input1, input2)
 	if expectedKeysLevelOrder != nil {
 		assert.Equal(t, expectedKeysLevelOrder, tree.KeysInLevelOrder(), "different keys by level")
 	}
@@ -71,8 +71,7 @@ func KV(keys []Felt, values []Felt) (KeyValues) {
 
 func K(keys []Felt) (KeyValues) {
 	values := make([]Felt, len(keys))
-	copied := copy(values, keys)
-	ensure(copied == len(keys), "KV: copy failed")
+	copy(values, keys)
 	return KV(keys, values)
 }
 
@@ -229,7 +228,7 @@ var deleteTestTable = []DeleteTest {
 	{K([]Felt{1, 2, 3, 4}),			[]Felt{3, 1, 2, 3, 4},		[]Felt{5},	[]Felt{3, 1, 2, 3, 4}},
 	{K([]Felt{1, 2, 3, 4, 5}),		[]Felt{3, 5, 1, 2, 3, 4, 5},	[]Felt{6},	[]Felt{3, 5, 1, 2, 3, 4, 5}},
 
-	/* MIXED TEST CASES */
+	/// MIXED TEST CASES
 	{K([]Felt{0, 46, 50, 89, 134, 218}),	[]Felt{50, 134, 0, 46, 50, 89, 134, 218},	[]Felt{46, 50, 89, 134, 218},	[]Felt{0}},
 }
 
@@ -247,7 +246,7 @@ func TestHeight(t *testing.T) {
 func TestIs23Tree(t *testing.T) {
 	for _, data := range isTree23TestTable {
 		tree := NewTree23(data.initialItems)
-		//tree.GraphAndPicture("tree23")
+		//tree.GraphAndPicture("is23Tree")
 		assertTwoThreeTree(t, tree, data.expectedKeysLevelOrder)
 	}
 }
@@ -262,7 +261,7 @@ func Test23TreeSeries(t *testing.T) {
 			kvPairs.values = append(kvPairs.values, &value)
 		}
 		tree := NewTree23(kvPairs)
-		require23Tree(t, tree, nil)
+		assertTwoThreeTree(t, tree, nil)
 	}
 }
 
@@ -356,30 +355,33 @@ func FuzzUpsert(f *testing.F) {
 		require.True(t, sort.IsSorted(kvStatePairs), "kvStatePairs is not sorted")
 		bytesReader2 := bytes.NewReader(input2)
 		kvStateChangesPairs := keyFactory.NewUniqueKeyValues(bufio.NewReader(bytesReader2))
-		fmt.Printf("kvStatePairs=%v kvStateChangesPairs=%v\n", kvStatePairs, kvStateChangesPairs)
+		//fmt.Printf("kvStatePairs=%v kvStateChangesPairs=%v\n", kvStatePairs, kvStateChangesPairs)
 		require.True(t, sort.IsSorted(kvStateChangesPairs), "kvStateChangesPairs is not sorted")
 		tree := NewTree23(kvStatePairs)
-		require23Tree(t, tree, nil)
+		assertTwoThreeTree(t, tree, nil)
 		tree = tree.UpsertNoStats(kvStateChangesPairs)
-		require23Tree(t, tree, nil)
+		assertTwoThreeTree(t, tree, nil)
 	})
 }
 
 func FuzzDelete(f *testing.F) {
 	f.Fuzz(func (t *testing.T, input1, input2 []byte) {
 		//t.Parallel()
+		//fmt.Printf("input1=%v input2=%v\n", input1, input2)
 		keyFactory := NewKeyBinaryFactory(1)
 		bytesReader1 := bytes.NewReader(input1)
 		kvStatePairs := keyFactory.NewUniqueKeyValues(bufio.NewReader(bytesReader1))
 		require.True(t, sort.IsSorted(kvStatePairs), "kvStatePairs is not sorted")
 		bytesReader2 := bytes.NewReader(input2)
 		keysToDelete := keyFactory.NewUniqueKeys(bufio.NewReader(bytesReader2))
-		fmt.Printf("kvStatePairs=%v keysToDelete=%v\n", kvStatePairs, keysToDelete)
+		//fmt.Printf("kvStatePairs=%v keysToDelete=%v\n", kvStatePairs, keysToDelete)
 		require.True(t, sort.IsSorted(Keys(keysToDelete)), "keysToDelete is not sorted")
 		tree := NewTree23(kvStatePairs)
-		require23Tree(t, tree, nil)
+		//tree.GraphAndPicture("fuzz_tree_delete1")
+		require23Tree(t, tree, nil, input1, input2)
 		tree = tree.DeleteNoStats(keysToDelete)
-		require23Tree(t, tree, nil)
+		//tree.GraphAndPicture("fuzz_tree_delete2")
+		require23Tree(t, tree, nil, input1, input2)
 	})
 }
 

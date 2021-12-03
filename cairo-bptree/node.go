@@ -75,19 +75,19 @@ func makeEmptyLeafNode() *Node23 {
 }
 
 func promote(nodes []*Node23, intermediateKeys []*Felt) *Node23 {
-	promotedRoot := makeInternalNode(nodes, intermediateKeys)
-	if promotedRoot.childrenCount() > 3 {
-		intermediateNodes := make([]*Node23, 0)
+	if len(nodes) > 3 {
+		promotedNodes := make([]*Node23, 0)
 		promotedKeys := make([]*Felt, 0)
-		for promotedRoot.childrenCount() > 3 {
-			intermediateNodes = append(intermediateNodes, makeInternalNode(promotedRoot.children[:2], promotedRoot.keys[:1]))
-			promotedRoot.children = promotedRoot.children[2:]
-			promotedKeys = append(promotedKeys, promotedRoot.keys[1])
-			promotedRoot.keys = promotedRoot.keys[2:]
+		for len(nodes) > 3 {
+			promotedNodes = append(promotedNodes, makeInternalNode(nodes[:2], intermediateKeys[:1]))
+			nodes = nodes[2:]
+			promotedKeys = append(promotedKeys, intermediateKeys[1])
+			intermediateKeys = intermediateKeys[2:]
 		}
-		intermediateNodes = append(intermediateNodes, makeInternalNode(promotedRoot.children[:], promotedRoot.keys[:]))
-		return promote(intermediateNodes, promotedKeys)
+		promotedNodes = append(promotedNodes, makeInternalNode(nodes[:], intermediateKeys[:]))
+		return promote(promotedNodes, promotedKeys)
 	} else {
+		promotedRoot := makeInternalNode(nodes, intermediateKeys)
 		return promotedRoot
 	}
 }
@@ -101,62 +101,90 @@ func (n *Node23) reset() {
 	}
 }
 
-func (n *Node23) isTwoThree() bool {
+func (n *Node23) isValid() bool {
 	if n.isLeaf {
-		/* Any leaf node shall have no children */
-		if n.childrenCount() != 0 {
-			return false
-		}
-		keyCount := n.keyCount()
-		/* Any leaf node can have either 1 or 2 keys (plus next key) */
-		return keyCount == 1+1 || keyCount == 2+1
+		return n.isValidLeaf()
 	} else {
-		/* Any internal node can have either 2 or 3 children */
-		if n.childrenCount() != 2 && n.childrenCount() != 3 {
+		return n.isValidInternal()
+	}
+}
+
+func (n *Node23) isValidLeaf() bool {
+	ensure(n.isLeaf, "isValidLeaf: node is not leaf")
+
+	/* Any leaf node shall have no children */
+	if n.childrenCount() != 0 {
+		return false
+	}
+	/* Any leaf node can have either 1 or 2 keys (plus next key) */
+	return n.keyCount() == 1+1 || n.keyCount() == 2+1
+}
+
+func (n *Node23) isValidInternal() bool {
+	ensure(!n.isLeaf, "isValidInternal: node is leaf")
+
+	/* Any internal node can have either 1 keys and 2 children or 2 keys and 3 children */
+	if n.keyCount() != 1 && n.keyCount() != 2 {
+		return false
+	}
+	if n.keyCount() == 1 && n.childrenCount() != 2 {
+		return false
+	}
+	if n.keyCount() == 2 && n.childrenCount() != 3 {
+		return false
+	}
+	for i := len(n.children)-1; i >= 0; i-- {
+		child := n.children[i]
+		// Check that each child subtree is a 2-3 tree
+		if !child.isValid() {
 			return false
 		}
-		for i := len(n.children)-1; i >= 0; i-- {
-			child := n.children[i]
-			// Check that each child subtree is a 2-3 tree
-			if !child.isTwoThree() {
+		// Check that each leaf node except first has previous leaf with correct next key
+		if child.isLeaf && i > 0 {
+			previousChild := n.children[i-1]
+			if previousChild.nextKey() != child.firstKey() {
 				return false
 			}
-			// Check that each leaf node except first has previous leaf with correct next key
-			if child.isLeaf && i > 0 {
-				previousChild := n.children[i-1]
-				if previousChild.nextKey() != child.firstKey() {
-					return false
-				}
-			}
 		}
-		// Check that each internal node has keys corresponding to leaf next keys
-		if !n.isLeaf {
-			leafNextKeyItems := n.walkPostOrder(func(nn *Node23) interface{} {
-				if nn.isLeaf {
-					return nn.nextKey()
-				} else {
-					return nil
-				}
-			})
-			for _, keyPtr := range n.keys {
-				hasNextKey := false
-				for _, leafNextKeyItem := range leafNextKeyItems {
-					if leafNextKeyItem == nil {
-						continue
-					}
-					leafNextKeyPtr := leafNextKeyItem.(*Felt)
-					if leafNextKeyPtr != nil && *keyPtr == *leafNextKeyPtr {
-						hasNextKey = true
-						break
-					}
-				}
-				if !hasNextKey {
-					return false
-				}
-			}
-		}
-		return true
 	}
+	if !n.isLeaf {
+		subtree := n.walkNodesPostOrder()
+		// Check that each internal node has keys corresponding to leaf next keys
+		for _, key := range n.keys {
+			hasNextKey := false
+			for _, node := range subtree {
+				if !node.isLeaf {
+					continue
+				}
+				leafNextKey := node.nextKey()
+				if leafNextKey != nil && *key == *leafNextKey {
+					hasNextKey = true
+					break
+				}
+			}
+			if !hasNextKey {
+				return false
+			}
+		}
+		// Check that leaves in subtree are chained together (next key -> first key)
+		for i, node := range subtree {
+			if !node.isLeaf {
+				// Post-order walk => previous and next nodes are contiguous leaves except last
+				if i == len(subtree)-1 {
+					continue
+				}
+				previousNode, nextNode := subtree[i-1], subtree[i+1]
+				if previousNode.isLeaf && nextNode.isLeaf {
+					// Previous node's next key must be equal to next node's first key
+					if previousNode.nextKey() != nextNode.firstKey() {
+						return false
+					}
+				}
+				continue
+			}
+		}
+	}
+	return true
 }
 
 func (n *Node23) keyCount() int {
@@ -189,6 +217,18 @@ func (n *Node23) firstChild() *Node23 {
 func (n *Node23) lastChild() *Node23 {
 	ensure(len(n.children) > 0, "lastChild: node has no children")
 	return n.children[len(n.children)-1]
+}
+
+func (n *Node23) lastLeaf() *Node23 {
+	if n.isLeaf {
+		return n
+	}
+	lastLeaf := n.lastChild()
+	for !lastLeaf.isLeaf {
+		lastLeaf = lastLeaf.lastChild()
+	}
+	ensure(lastLeaf.isLeaf, "lastLeaf: last is not leaf")
+	return lastLeaf
 }
 
 func (n *Node23) nextKey() *Felt {

@@ -51,11 +51,15 @@ func (t *Tree23) RootHash() []byte {
 	return t.root.hashNode()
 }
 
-func (t *Tree23) IsTwoThree() bool {
+func (t *Tree23) IsValid() bool {
 	if t.root == nil {
 		return true
 	}
-	return t.root.isTwoThree()
+	// Last leaf must have sentinel next key
+	if t.root.lastLeaf().nextKey() != nil {
+		return false
+	}
+	return t.root.isValid()
 }
 
 func (t *Tree23) Graph(filename string, debug bool) {
@@ -131,8 +135,8 @@ func (t *Tree23) DeleteNoStats(keyToDelete []Felt) *Tree23 {
 
 func (t *Tree23) Delete(keyToDelete []Felt, stats *Stats) *Tree23 {
 	log.Debugf("Delete: t=%p root=%p keyToDelete=%v\n", t, t.root, keyToDelete)
-	newRoot, nextKey := delete(t.root, keyToDelete, stats)
-	t.root, _ = demote(newRoot, nextKey)
+	newRoot, nextKey, intermediateKeys := delete(t.root, keyToDelete, stats)
+	t.root, _ = demote(newRoot, nextKey, intermediateKeys)
 	return t
 }
 

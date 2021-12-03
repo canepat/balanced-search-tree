@@ -117,7 +117,7 @@ func main() {
 		}
 	
 		stats := &cairo_bptree.Stats{}
-		newState := state.Upsert(stateChanges, stats)
+		newState := state.UpsertWithStats(stateChanges, stats)
 		rehashedNodes := newState.CountNewHashes()
 
 		log.Printf("UPSERT: number of nodes in the next state tree: %d\n", newState.Size())

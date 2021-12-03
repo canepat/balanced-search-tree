@@ -277,7 +277,7 @@ func TestUpsertInsert(t *testing.T) {
 		tree := NewTree23(data.initialItems)
 		assertTwoThreeTree(t, tree, data.initialKeysLevelOrder)
 		//tree.GraphAndPicture("tree_step1")
-		tree.UpsertNoStats(data.deltaItems)
+		tree.Upsert(data.deltaItems)
 		//tree.GraphAndPicture("tree_step2")
 		assertTwoThreeTree(t, tree, data.finalKeysLevelOrder)
 	}
@@ -288,7 +288,7 @@ func TestUpsertUpdate(t *testing.T) {
 		tree := NewTree23(data.initialItems)
 		assertTwoThreeTree(t, tree, data.initialKeysLevelOrder)
 		// TODO: add check for old values
-		tree.UpsertNoStats(data.deltaItems)
+		tree.Upsert(data.deltaItems)
 		assertTwoThreeTree(t, tree, data.finalKeysLevelOrder)
 		// TODO: add check for new values
 	}
@@ -298,7 +298,7 @@ func TestUpsertIdempotent(t *testing.T) {
 	for _, data := range isTree23TestTable {
 		tree := NewTree23(data.initialItems)
 		assertTwoThreeTree(t, tree, data.expectedKeysLevelOrder)
-		tree.UpsertNoStats(data.initialItems)
+		tree.Upsert(data.initialItems)
 		assertTwoThreeTree(t, tree, data.expectedKeysLevelOrder)
 	}
 }
@@ -317,17 +317,17 @@ func TestUpsertNextKey(t *testing.T) {
 		key, value := Felt(i*2+1), Felt(i*2+1)
 		data.keys[i], data.values[i] = &key, &value
 	}
-	tn = tn.UpsertNoStats(data)
+	tn = tn.Upsert(data)
 	//tn.GraphAndPicture("tn2")
 	assertTwoThreeTree(t, tn, []Felt{4, 2, 6, 0, 1, 2, 3, 4, 5, 6, 7})
 	
 	data = K([]Felt{100, 101, 200, 201, 202})
-	tn = tn.UpsertNoStats(data)
+	tn = tn.Upsert(data)
 	//tn.GraphAndPicture("tn3")
 	assertTwoThreeTree(t, tn, []Felt{4, 100, 2, 6, 200, 202, 0, 1, 2, 3, 4, 5, 6, 7, 100, 101, 200, 201, 202})
 	
 	data = K([]Felt{10, 150, 250, 251, 252})
-	tn = tn.UpsertNoStats(data)
+	tn = tn.Upsert(data)
 	//tn.GraphAndPicture("tn4")
 	assertTwoThreeTree(t, tn, []Felt{100, 4, 200, 2, 6, 10, 150, 202, 251, 0, 1, 2, 3, 4, 5, 6, 7, 10, 100, 101, 150, 200, 201, 202, 250, 251, 252})
 }
@@ -340,7 +340,7 @@ func TestDelete(t *testing.T) {
 		tree := NewTree23(data.initialItems)
 		assertTwoThreeTree(t, tree, data.initialKeysLevelOrder)
 		//tree.GraphAndPicture("tree_delete1")
-		tree.DeleteNoStats(data.keysToDelete)
+		tree.Delete(data.keysToDelete)
 		//tree.GraphAndPicture("tree_delete2")
 		assertTwoThreeTree(t, tree, data.finalKeysLevelOrder)
 	}
@@ -359,7 +359,7 @@ func FuzzUpsert(f *testing.F) {
 		require.True(t, sort.IsSorted(kvStateChangesPairs), "kvStateChangesPairs is not sorted")
 		tree := NewTree23(kvStatePairs)
 		assertTwoThreeTree(t, tree, nil)
-		tree = tree.UpsertNoStats(kvStateChangesPairs)
+		tree = tree.Upsert(kvStateChangesPairs)
 		assertTwoThreeTree(t, tree, nil)
 	})
 }
@@ -379,7 +379,7 @@ func FuzzDelete(f *testing.F) {
 		tree := NewTree23(kvStatePairs)
 		//tree.GraphAndPicture("fuzz_tree_delete1")
 		require23Tree(t, tree, nil, input1, input2)
-		tree = tree.DeleteNoStats(keysToDelete)
+		tree = tree.Delete(keysToDelete)
 		//tree.GraphAndPicture("fuzz_tree_delete2")
 		require23Tree(t, tree, nil, input1, input2)
 	})
@@ -414,6 +414,6 @@ func BenchmarkUpsert(b *testing.B) {
 	}
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		tree.UpsertNoStats(data)
+		tree.Upsert(data)
 	}
 }

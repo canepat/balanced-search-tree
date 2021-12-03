@@ -19,7 +19,7 @@ func NewEmptyTree23() *Tree23 {
 }
 
 func NewTree23(kvItems KeyValues) *Tree23 {
-	tree := new(Tree23).Upsert(kvItems, &Stats{})
+	tree := new(Tree23).Upsert(kvItems)
 	tree.reset()
 	return tree
 }
@@ -114,11 +114,11 @@ func (t *Tree23) WalkKeysPostOrder() []Felt {
 	return keys
 }
 
-func (t *Tree23) UpsertNoStats(kvItems KeyValues) *Tree23 {
-	return t.Upsert(kvItems, &Stats{})
+func (t *Tree23) Upsert(kvItems KeyValues) *Tree23 {
+	return t.UpsertWithStats(kvItems, &Stats{})
 }
 
-func (t *Tree23) Upsert(kvItems KeyValues, stats *Stats) *Tree23 {
+func (t *Tree23) UpsertWithStats(kvItems KeyValues, stats *Stats) *Tree23 {
 	promoted, _, intermediateKeys := upsert(t.root, kvItems, stats)
 	ensure(len(promoted) > 0, "nodes length is zero")
 	if len(promoted) == 1 {
@@ -129,11 +129,11 @@ func (t *Tree23) Upsert(kvItems KeyValues, stats *Stats) *Tree23 {
 	return t
 }
 
-func (t *Tree23) DeleteNoStats(keyToDelete []Felt) *Tree23 {
-	return t.Delete(keyToDelete, &Stats{})
+func (t *Tree23) Delete(keyToDelete []Felt) *Tree23 {
+	return t.DeleteWithStats(keyToDelete, &Stats{})
 }
 
-func (t *Tree23) Delete(keyToDelete []Felt, stats *Stats) *Tree23 {
+func (t *Tree23) DeleteWithStats(keyToDelete []Felt, stats *Stats) *Tree23 {
 	log.Debugf("Delete: t=%p root=%p keyToDelete=%v\n", t, t.root, keyToDelete)
 	newRoot, nextKey, intermediateKeys := delete(t.root, keyToDelete, stats)
 	t.root, _ = demote(newRoot, nextKey, intermediateKeys)

@@ -18,7 +18,10 @@ func NewGraph(node *Node23) *Node23Graph {
 }
 
 func (g *Node23Graph) saveDot(filename string, debug bool) {
-	colors := []string{"#FDF3D0", "#DCE8FA", "#D9E7D6", "#F1CFCD", "#F5F5F5", "#E1D5E7", "#FFE6CC", "white"}
+	palette := []string{"#FDF3D0", "#DCE8FA", "#D9E7D6", "#F1CFCD", "#F5F5F5", "#E1D5E7", "#FFE6CC", "white"}
+	const unexposedIndex = 0
+	const exposedIndex = 1
+
 	f, err := os.OpenFile(filename+".dot", os.O_RDWR|os.O_CREATE, 0755)
 	if err != nil {
 		log.Fatal(err)
@@ -52,18 +55,21 @@ func (g *Node23Graph) saveDot(filename string, debug bool) {
 			right = "<R>R"
 		}
 		var nodeId string
-		ensure(len(n.keys) > 0, fmt.Sprintf("node %s has zero keys", n))
 		if n.isLeaf {
 			next := ""
-			if n.nextKey() == nil {
-				next = "nil"
+			if n.keyCount() > 0 {
+				if n.nextKey() == nil {
+					next = "nil"
+				} else {
+					next = strconv.FormatUint(uint64(*n.nextKey()), 10)
+				}
+				if debug {
+					nodeId = fmt.Sprintf("k=%v %s-%v", deref(n.keys[:len(n.keys)-1]), next, n.keys)
+				} else {
+					nodeId = fmt.Sprintf("k=%v %s", deref(n.keys[:len(n.keys)-1]), next)
+				}
 			} else {
-				next = strconv.FormatUint(uint64(*n.nextKey()), 10)
-			}
-			if debug {
-				nodeId = fmt.Sprintf("k=%v %s-%v", deref(n.keys[:len(n.keys)-1]), next, n.keys)
-			} else {
-				nodeId = fmt.Sprintf("k=%v %s", deref(n.keys[:len(n.keys)-1]), next)
+				nodeId = "k=[]"
 			}
 		} else {
 			if debug {
@@ -72,12 +78,11 @@ func (g *Node23Graph) saveDot(filename string, debug bool) {
 				nodeId = fmt.Sprintf("k=%v", deref(n.keys))
 			}
 		}
-		//s := fmt.Sprintln(/*n.path*/n.rawPointer(), " [label=\"", left, "|{<C>", nodeId, "|", down, "}|", right, "\" style=filled fillcolor=\"", colors[0], "\"];")
 		var color string
 		if n.exposed {
-			color = colors[1]
+			color = palette[exposedIndex]
 		} else {
-			color = colors[0]
+			color = palette[unexposedIndex]
 		}
 		s := fmt.Sprintf("%d [label=\"%s|{<C>%s|%s}|%s\" style=filled fillcolor=\"%s\"];\n", n.rawPointer(), left, nodeId, down, right, color)
 		if _, err := f.WriteString(s); err != nil {

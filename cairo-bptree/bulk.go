@@ -424,11 +424,17 @@ func deleteInternal(n *Node23, keysToDelete []Felt, stats *Stats) (deleted *Node
 			}
 		}
 	}
+	if len(newKeys) == len(n.children) {
+		n.keys = newKeys[:len(newKeys)-1]
+		intermediateKeys = append(intermediateKeys, newKeys[len(newKeys)-1])
+	} else {
+		n.keys = newKeys
+	}
 	switch len(n.children) {
 	case 2:
-		nextKey = update2Node(n, nextKey, newKeys)
+		nextKey = update2Node(n, nextKey)
 	case 3:
-		nextKey = update3Node(n, nextKey, newKeys)
+		nextKey = update3Node(n, nextKey)
 	default:
 		ensure(false, fmt.Sprintf("unexpected number of children in %s", n))
 	}
@@ -453,9 +459,8 @@ func splitKeys(n *Node23, keysToDelete []Felt) [][]Felt {
 	return keySubsets
 }
 
-func update2Node(n *Node23, nextKey *Felt, newKeys []*Felt) *Felt {
+func update2Node(n *Node23, nextKey *Felt) *Felt {
 	ensure(len(n.children) == 2, "update2Node: wrong number of children")
-	n.keys = newKeys
 	nodeA, nodeC := n.children[0], n.children[1]
 	if nodeA.isEmpty() {
 		if nodeC.isEmpty() {
@@ -490,9 +495,8 @@ func update2Node(n *Node23, nextKey *Felt, newKeys []*Felt) *Felt {
 	}
 }
 
-func update3Node(n *Node23, nextKey *Felt, newKeys []*Felt) *Felt {
+func update3Node(n *Node23, nextKey *Felt) *Felt {
 	ensure(len(n.children) == 3, "update3Node: wrong number of children")
-	n.keys = newKeys
 	nodeA, nodeB, nodeC := n.children[0], n.children[1], n.children[2]
 	if nodeA.isEmpty() {
 		if nodeB.isEmpty() {
@@ -569,10 +573,20 @@ func demote(node *Node23, nextKey *Felt, intermediateKeys []*Felt) (*Node23, *Fe
 	} else if len(node.children) == 1 {
 		return node.children[0], nextKey
 	} else if len(node.children) == 2 {
-		if node.children[0].keyCount() == 2 && node.children[1].keyCount() == 2 {
-			ensure(node.children[0].isLeaf, fmt.Sprintf("unexpected internal node as 1st child: %s", node))
-			keys := []*Felt{node.children[0].firstKey(), node.children[1].firstKey(), node.children[1].nextKey()}
-			values := []*Felt{node.children[0].firstValue(), node.children[1].firstValue(), node.children[1].nextValue()}
+		firstChild, secondChild := node.children[0], node.children[1]
+		if firstChild.keyCount() == 0 && secondChild.keyCount() == 0 {
+			return node, nextKey
+		}
+		if firstChild.keyCount() == 0 && secondChild.keyCount() > 0 {
+			return secondChild, nextKey
+		}
+		if firstChild.keyCount() > 0 && secondChild.keyCount() == 0 {
+			return firstChild, nextKey
+		}
+		if firstChild.keyCount() == 2 && secondChild.keyCount() == 2 {
+			ensure(firstChild.isLeaf, fmt.Sprintf("unexpected internal node as 1st child: %s", node))
+			keys := []*Felt{firstChild.firstKey(), secondChild.firstKey(), secondChild.nextKey()}
+			values := []*Felt{firstChild.firstValue(), secondChild.firstValue(), secondChild.nextValue()}
 			return makeLeafNode(keys, values), nextKey
 		}
 	}

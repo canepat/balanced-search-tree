@@ -137,7 +137,13 @@ dmypy.json
 *.code-workspace
 
 # Golang
-testdata/
+cmd/cairo-avl/cairo-avl
+cmd/cairo-bptree/cairo-bptree
+
+testdata/corpus/FuzzDelete
+testdata/temp
+testdata/graph
+state*
 
 *.bin
 *.csv

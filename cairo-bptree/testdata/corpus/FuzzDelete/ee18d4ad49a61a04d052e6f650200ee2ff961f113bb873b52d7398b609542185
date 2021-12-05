@@ -1,0 +1,3 @@
+go test fuzz v1
+[]byte("pĳ\xc5\xff\x13\x13")
+[]byte("pĳ\xcd")

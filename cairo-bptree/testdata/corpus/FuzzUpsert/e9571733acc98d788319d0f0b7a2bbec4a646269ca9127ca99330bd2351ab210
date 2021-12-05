@@ -1,0 +1,3 @@
+go test fuzz v1
+[]byte("khpU\xbf\x11\n\x9cs\x88\x04")
+[]byte("x\x00`\xbb\x81\xbd\xa4\x85")

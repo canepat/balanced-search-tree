@@ -79,54 +79,51 @@ func main() {
 	log.Printf("Trees are nested: %t\n", options.nested)
 
 	var stateFile, stateChangesFile *cairo_bptree.BinaryFile
-	defer func () {
-		if stateFile != nil {
-			stateFile.Close()
-		}
-		if stateChangesFile != nil {
-			stateChangesFile.Close()
-		}
-	}()
+
 	if options.generate {
 		log.Printf("Creating random binary state file...\n")
 		stateFile = cairo_bptree.CreateRandomBinaryFile("state", int64(options.stateFileSize))
+		defer stateFile.Close()
 		log.Printf("Random binary state file created: %s\n", stateFile.Name())
 		log.Printf("Creating random binary state-changes file...\n")
 		stateChangesFile = cairo_bptree.CreateRandomBinaryFile("statechanges", int64(options.stateChangesFileSize))
+		defer stateChangesFile.Close()
 		log.Printf("Random binary state-changes file created: %s\n", stateChangesFile.Name())
 	} else {
 		stateFile = cairo_bptree.OpenBinaryFile(options.stateFileName)
+		defer stateFile.Close()
 		log.Printf("Random binary state file opened: %s, size=%d\n", stateFile.Name(), stateFile.Size())
 		stateChangesFile = cairo_bptree.OpenBinaryFile(options.stateChangesFileName)
+		defer stateChangesFile.Close()
 		log.Printf("Random binary state-changes file opened: %s, size=%d\n", stateChangesFile.Name(), stateChangesFile.Size())
+	}
 
-		keyFactory := cairo_bptree.NewKeyBinaryFactory(int(options.keySize))
-		log.Printf("Reading unique key-value pairs from: %s\n", stateFile.Name())
-		kvPairs := keyFactory.NewUniqueKeyValues(stateFile.NewReader())
-		log.Printf("Creating tree with #kvPairs=%v\n", kvPairs.Len())
-		state := cairo_bptree.NewTree23(kvPairs)
-		log.Printf("Created tree: %v\n", state)
-		log.Printf("Reading unique key-value pairs from: %s\n", stateChangesFile.Name())
-		stateChanges := keyFactory.NewUniqueKeyValues(stateChangesFile.NewReader())
-	
-		log.Printf("UPSERT: number of nodes in the current state tree: %d\n", state.Size())
-		log.Printf("UPSERT: number of state changes: %d\n", stateChanges.Len())
+	keyFactory := cairo_bptree.NewKeyBinaryFactory(int(options.keySize))
+	log.Printf("Reading unique key-value pairs from: %s\n", stateFile.Name())
+	kvPairs := keyFactory.NewUniqueKeyValues(stateFile.NewReader())
+	log.Printf("Creating tree with #kvPairs=%v\n", kvPairs.Len())
+	state := cairo_bptree.NewTree23(kvPairs)
+	log.Printf("Created tree: %v\n", state)
+	log.Printf("Reading unique key-value pairs from: %s\n", stateChangesFile.Name())
+	stateChanges := keyFactory.NewUniqueKeyValues(stateChangesFile.NewReader())
 
-		if options.graph {
-			state.GraphAndPicture("state")
-		}
-	
-		stats := &cairo_bptree.Stats{}
-		newState := state.UpsertWithStats(stateChanges, stats)
-		rehashedNodes := newState.CountNewHashes()
+	log.Printf("UPSERT: number of nodes in the current state tree: %d\n", state.Size())
+	log.Printf("UPSERT: number of state changes: %d\n", stateChanges.Len())
 
-		log.Printf("UPSERT: number of nodes in the next state tree: %d\n", newState.Size())
-		log.Printf("UPSERT: number of re-hashed nodes for the next state: %d\n", rehashedNodes)
-		log.Printf("UPSERT: number of existing nodes exposed: %d\n", stats.ExposedCount)
-		log.Printf("UPSERT: number of new nodes exposed: %d\n", rehashedNodes-stats.ExposedCount)
-	
-		if options.graph {
-			newState.GraphAndPicture("newState")
-		}
+	if options.graph {
+		state.GraphAndPicture("state")
+	}
+
+	stats := &cairo_bptree.Stats{}
+	newState := state.UpsertWithStats(stateChanges, stats)
+	rehashedNodes := newState.CountNewHashes()
+
+	log.Printf("UPSERT: number of nodes in the next state tree: %d\n", newState.Size())
+	log.Printf("UPSERT: number of re-hashed nodes for the next state: %d\n", rehashedNodes)
+	log.Printf("UPSERT: number of existing nodes exposed: %d\n", stats.ExposedCount)
+	log.Printf("UPSERT: number of new nodes exposed: %d\n", rehashedNodes-stats.ExposedCount)
+
+	if options.graph {
+		newState.GraphAndPicture("newState")
 	}
 }

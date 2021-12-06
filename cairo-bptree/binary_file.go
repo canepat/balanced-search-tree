@@ -20,26 +20,31 @@ type BinaryFile struct {
 }
 
 func CreateRandomBinaryFile(path string, size int64) *BinaryFile {
-	size = (size / BLOCKSIZE + 1) * BLOCKSIZE
-
-	file, err := os.OpenFile(path + strconv.FormatInt(size, 10), os.O_WRONLY|os.O_CREATE, 0644)
+	file, err := os.OpenFile(path + strconv.FormatInt(size, 10), os.O_RDWR|os.O_CREATE, 0644)
 	ensure(err == nil, fmt.Sprintf("CreateRandomBinaryFile: cannot create file %s, error %s\n", file.Name(), err))
 
 	err = file.Truncate(size)
 	ensure(err == nil, fmt.Sprintf("CreateRandomBinaryFile: cannot truncate file %s to %d, error %s\n", file.Name(), size, err))
 
 	bufferedFile := bufio.NewWriter(file)
+	numBlocks := size / BLOCKSIZE
+	remainderSize := size % BLOCKSIZE
 	buffer := make([]byte, BLOCKSIZE)
-	for i := int64(0); i < size; i+= BLOCKSIZE {
+	for i := int64(0); i <= numBlocks; i++ {
+		if i == numBlocks {
+			buffer = make([]byte, remainderSize)
+		}
 		bytesRead, err := io.ReadFull(rand.Reader, buffer)
-		ensure(bytesRead == len(buffer), fmt.Sprintf("insufficient bytes read %d, error %s\n", bytesRead, err))
+		ensure(bytesRead == len(buffer), fmt.Sprintf("CreateRandomBinaryFile: insufficient bytes read %d, error %s\n", bytesRead, err))
 		bytesWritten, err := bufferedFile.Write(buffer)
-
-		ensure(bytesWritten == len(buffer), fmt.Sprintf("insufficient bytes written %d, error %s\n", bytesWritten, err))
+		ensure(bytesWritten == len(buffer), fmt.Sprintf("CreateRandomBinaryFile: insufficient bytes written %d, error %s\n", bytesWritten, err))
 	}
+
 	err = bufferedFile.Flush()
-	ensure(err == nil, fmt.Sprintf("error during flushing %s\n", err))
-	file.Seek(0, 0)
+	ensure(err == nil, fmt.Sprintf("CreateRandomBinaryFile: error during flushing %s\n", err))
+	offset, err := file.Seek(0, 0)
+	ensure(err == nil, fmt.Sprintf("CreateRandomBinaryFile: error during seeking %s\n", err))
+	ensure(offset == 0, fmt.Sprintf("CreateRandomBinaryFile: unexpected offset after seeking: %d\n", offset))
 
 	binaryFile := &BinaryFile{
 		path : file.Name(),

@@ -3,6 +3,7 @@ package cairo_bptree
 import (
 	"bufio"
 	"encoding/binary"
+	"fmt"
 	"io"
 	"sort"
 )
@@ -38,6 +39,7 @@ func (factory *KeyBinaryFactory) readUniqueKeyValues(reader *bufio.Reader) KeyVa
 	buffer := make([]byte, BufferSize)
 	for {
 		bytes_read, err := reader.Read(buffer)
+		ensure(err == nil || err == io.EOF, fmt.Sprintf("readUniqueKeyValues: read error %s\n", err))
 		if err == io.EOF {
 			break
 		}

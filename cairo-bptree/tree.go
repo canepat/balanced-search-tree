@@ -51,13 +51,13 @@ func (t *Tree23) RootHash() []byte {
 	return t.root.hashNode()
 }
 
-func (t *Tree23) IsValid() bool {
+func (t *Tree23) IsValid() (bool, error) {
 	if t.root == nil {
-		return true
+		return true, nil
 	}
 	// Last leaf must have sentinel next key
-	if t.root.lastLeaf().nextKey() != nil {
-		return false
+	if lastLeaf := t.root.lastLeaf(); lastLeaf.keyCount() > 0 && lastLeaf.nextKey() != nil {
+		return false, fmt.Errorf("no sentinel next key in last leaf %d", &lastLeaf)
 	}
 	return t.root.isValid()
 }

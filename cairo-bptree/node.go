@@ -133,12 +133,49 @@ func (n *Node23) isValidInternal() (bool, error) {
 	if n.keyCount() == 2 && n.childrenCount() != 3 {
 		return false, fmt.Errorf("invalid %d children in %v", n.keyCount(), n)
 	}
+	subtree := n.walkNodesPostOrder()
+	// Check that each internal node has unique keys corresponding to leaf next keys
+	for _, key := range n.keys {
+		hasNextKey := false
+		for _, node := range subtree {
+			if !node.isLeaf {
+				if node != n && node.hasKey(key) {
+					return false, fmt.Errorf("internal key %d not unique", *key)
+				}
+				continue
+			}
+			leafNextKey := node.nextKey()
+			if leafNextKey != nil && *key == *leafNextKey {
+				hasNextKey = true
+			}
+		}
+		if !hasNextKey {
+			return false, fmt.Errorf("internal key %d not present in next keys", *key)
+		}
+	}
+	// Check that leaves in subtree are chained together (next key -> first key)
+	for i, node := range subtree {
+		if !node.isLeaf {
+			// Post-order walk => previous and next nodes are contiguous leaves except last
+			if i == len(subtree)-1 {
+				continue
+			}
+			previous, next := subtree[i-1], subtree[i+1]
+			if previous.isLeaf && next.isLeaf {
+				// Previous node's next key must be equal to next node's first key
+				if previous.nextKey() != next.firstKey() {
+					return false, fmt.Errorf("nodes %v and %v not chained by next key", previous, next)
+				}
+			}
+			continue
+		}
+	}
 	for i := len(n.children)-1; i >= 0; i-- {
 		child := n.children[i]
 		// Check that each child subtree is a 2-3 tree
-		childValid, _ := child.isValid()
+		childValid, err := child.isValid()
 		if !childValid {
-			return false, fmt.Errorf("invalid %v child in %v", child, n)
+			return false, fmt.Errorf("invalid child %v in %v, error: %v", child, n, err)
 		}
 		// Check that each leaf node except first has previous leaf with correct next key
 		/*if child.isLeaf && i > 0 {
@@ -147,45 +184,6 @@ func (n *Node23) isValidInternal() (bool, error) {
 				return false
 			}
 		}*/
-	}
-	if !n.isLeaf {
-		subtree := n.walkNodesPostOrder()
-		// Check that each internal node has unique keys corresponding to leaf next keys
-		for _, key := range n.keys {
-			hasNextKey := false
-			for _, node := range subtree {
-				if !node.isLeaf {
-					if node != n && node.hasKey(key) {
-						return false, fmt.Errorf("internal key %d not unique", *key)
-					}
-					continue
-				}
-				leafNextKey := node.nextKey()
-				if leafNextKey != nil && *key == *leafNextKey {
-					hasNextKey = true
-				}
-			}
-			if !hasNextKey {
-				return false, fmt.Errorf("internal key %d not present in next keys", *key)
-			}
-		}
-		// Check that leaves in subtree are chained together (next key -> first key)
-		for i, node := range subtree {
-			if !node.isLeaf {
-				// Post-order walk => previous and next nodes are contiguous leaves except last
-				if i == len(subtree)-1 {
-					continue
-				}
-				previous, next := subtree[i-1], subtree[i+1]
-				if previous.isLeaf && next.isLeaf {
-					// Previous node's next key must be equal to next node's first key
-					if previous.nextKey() != next.firstKey() {
-						return false, fmt.Errorf("nodes %v and %v not chained by next key", previous, next)
-					}
-				}
-				continue
-			}
-		}
 	}
 	return true, nil
 }

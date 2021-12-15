@@ -379,7 +379,12 @@ func deleteInternal(n *Node23, keysToDelete []Felt, stats *Stats) (deleted *Node
 		newKeys = append(childIntermediateKeys, newKeys...)
 		log.Tracef("delete: n=%s child=%s childNextKey=%s\n", n, child, pointerValue(childNextKey))
 		if i > 0 {
-			previousChild := n.children[i-1]
+			previousIndex := i - 1
+			previousChild := n.children[previousIndex]
+			for previousChild.isEmpty() && previousIndex - 1 >= 0 {
+				previousChild = n.children[previousIndex - 1]
+				previousIndex = previousIndex - 1
+			}
 			if child == nil || childNextKey != nil {
 				if previousChild.isLeaf {
 					ensure(len(previousChild.keys) > 0, "delete: previousChild has no keys")
@@ -389,35 +394,22 @@ func deleteInternal(n *Node23, keysToDelete []Felt, stats *Stats) (deleted *Node
 					previousChild.lastLeaf().setNextKey(childNextKey)
 				}
 			}
-			if child != nil && !child.isLeaf {
-				if child.childrenCount() == 0 {
-					child.keys = child.keys[:0]
-				} else if child.childrenCount() == 1 {
-					previousChild.children = append(previousChild.children, child.firstChild())
-					firstKey := child.firstLeaf().firstKey()
-					previousChild.keys = append(previousChild.keys, firstKey)
-					child.children = child.children[:0]
-					child.keys = child.keys[:0]
-				}
+			if child != nil && child.childrenCount() == 1 {
+				child.keys = child.keys[:0]
+				newLeft, newRight := mergeRight2Left(previousChild, child)
+				n.children = append(n.children[:previousIndex], append([]*Node23{newLeft, newRight}, n.children[i + 1:]...)...)
 			}
 		} else {
-			nextChild := n.children[i+1]
-			if child != nil && !child.isLeaf {
-				if child.childrenCount() == 0 {
-					child.keys = child.keys[:0]
-				} else if child.childrenCount() == 1 {
-					if nextChild.childrenCount() < 3 {
-						nextChild.children = append([]*Node23{child.firstChild()}, nextChild.children...)
-						nextKey := child.lastLeaf().nextKey()
-						nextChild.keys = append([]*Felt{nextKey}, nextChild.keys...)
-						child.children = child.children[:0]
-					} else {
-						child.children = append(child.children, nextChild.firstChild())
-						newKeys = append([]*Felt{nextChild.firstKey()}, newKeys...)
-						nextChild.children = nextChild.children[1:]
-						nextChild.keys = nextChild.keys[1:]
-					}
-				}
+			nextIndex := i + 1
+			nextChild := n.children[nextIndex]
+			for nextChild.isEmpty() && nextIndex + 1 < n.childrenCount() {
+				nextChild = n.children[nextIndex + 1]
+				nextIndex = nextIndex + 1
+			}
+			if child != nil && child.childrenCount() == 1 {
+				child.keys = child.keys[:0]
+				newLeft, newRight := mergeLeft2Right(child, nextChild)
+				n.children = append([]*Node23{newLeft, newRight}, n.children[nextIndex + 1:]...)
 			}
 			if childNextKey != nil {
 				nextKey = childNextKey
@@ -439,6 +431,90 @@ func deleteInternal(n *Node23, keysToDelete []Felt, stats *Stats) (deleted *Node
 			intermediateKeys = append(intermediateKeys, n.firstLeaf().firstKey())
 		}*/
 		return n, nextKey, intermediateKeys
+	}
+}
+
+func mergeLeft2Right(left, right *Node23) (newLeft, newRight *Node23) {
+	ensure(!left.isLeaf, "mergeLeft2Right: left is leaf")
+	ensure(left.childrenCount() > 0, "mergeLeft2Right: left has no children")
+
+	if left.firstChild().childrenCount() == 1 {
+		if right.firstChild().childrenCount() < 3 {
+			_, newRightFirstChild := mergeLeft2Right(left.firstChild(), right.firstChild())
+			newRight = makeInternalNode(
+				append([]*Node23{newRightFirstChild}, right.children[1:]...),
+				right.keys,
+			)
+			newLeft = makeInternalNode([]*Node23{}, []*Felt{})
+			return newLeft, newRight
+		} else {
+			newLeft = makeInternalNode(
+				append([]*Node23{left.firstChild()}, right.firstChild()),
+				left.keys,
+			)
+			newRight = makeInternalNode([]*Node23{}, []*Felt{})
+			return newLeft, newRight
+		}
+	}
+
+	if right.childrenCount() < 3 {
+		newRight = makeInternalNode(
+			append([]*Node23{left.firstChild()}, right.children...),
+			append([]*Felt{left.lastLeaf().nextKey()}, right.keys...),
+		)
+		if left.keyCount() > 0 && left.childrenCount() > 0{
+			newLeft = makeInternalNode(left.children[1:], left.keys[1:])
+		} else {
+			newLeft = makeInternalNode([]*Node23{}, []*Felt{})
+		}
+		return newLeft, newRight
+	} else {
+		newLeft, newRight = mergeRight2Left(left, right)
+		//right.children = right.children[1:]
+		//right.keys = right.keys[1:]
+		return newLeft, newRight
+	}
+}
+
+func mergeRight2Left(left, right *Node23) (newLeft, newRight *Node23) {
+	ensure(!right.isLeaf, "mergeRight2Left: right is leaf")
+	ensure(right.childrenCount() > 0, "mergeRight2Left: right has no children")
+
+	if right.firstChild().childrenCount() == 1 {
+		if left.lastChild().childrenCount() < 3 {
+			newLeftLastChild, _ := mergeRight2Left(left.lastChild(), right.firstChild())
+			newLeft = makeInternalNode(
+				append(left.children[:len(left.children)-1], newLeftLastChild),
+				left.keys,
+			)
+			newRight = makeInternalNode([]*Node23{}, []*Felt{})
+			return newLeft, newRight
+		} else {
+			newRight = makeInternalNode(
+				append([]*Node23{left.lastChild()}, right.firstChild()),
+				right.keys,
+			)
+			newLeft = makeInternalNode([]*Node23{}, []*Felt{})
+			return newLeft, newRight
+		}
+	}
+
+	if left.childrenCount() < 3 {
+		newLeft = makeInternalNode(
+			append(left.children, right.firstChild()),
+			append(left.keys, right.firstLeaf().firstKey()),
+		)
+		if right.keyCount() > 0 && right.childrenCount() > 0 {
+			newRight = makeInternalNode(right.children[1:], right.keys[1:])
+		} else {
+			newRight = makeInternalNode([]*Node23{}, []*Felt{})
+		}
+		return newLeft, newRight
+	} else {
+		newLeft, newRight = mergeLeft2Right(left, right)
+		//left.children = left.children[:len(left.children)-1]
+		//left.keys = left.keys[:len(left.keys)-1]
+		return newLeft, newRight
 	}
 }
 
@@ -472,7 +548,6 @@ func update2Node(n *Node23, newKeys []*Felt, nextKey *Felt, intermediateKeys []*
 		n.keys = newKeys[:1]
 		intermediateKeys = append(intermediateKeys, newKeys[1])
 	default:
-		//n.keys = newKeys
 		ensure(false, fmt.Sprintf("update2Node: wrong number of newKeys=%d", len(newKeys)))
 	}
 	nodeA, nodeC := n.children[0], n.children[1]
@@ -481,7 +556,6 @@ func update2Node(n *Node23, newKeys []*Felt, nextKey *Felt, intermediateKeys []*
 			/* A is empty, a_next is the "next key"; C is empty, c_next is the "next key" */
 			n.children = n.children[:0]
 			n.keys = n.keys[:0]
-			//n.isLeaf = true
 			if nodeC.isLeaf {
 				return nodeC.nextKey(), intermediateKeys
 			}
@@ -506,7 +580,7 @@ func update2Node(n *Node23, newKeys []*Felt, nextKey *Felt, intermediateKeys []*
 			return nextKey, intermediateKeys
 		} else {
 			/* A is not empty; C is not empty */
-			/// n.keys = []*Felt{nodeA.lastLeaf().nextKey()}
+			n.keys = []*Felt{nodeA.lastLeaf().nextKey()}
 			return nextKey, intermediateKeys
 		}
 	}
@@ -526,7 +600,6 @@ func update3Node(n *Node23, newKeys []*Felt, nextKey *Felt, intermediateKeys []*
 		n.keys = newKeys[:2]
 		intermediateKeys = append(intermediateKeys, newKeys[2])
 	default:
-		//n.keys = newKeys
 		ensure(false, fmt.Sprintf("update3Node: wrong number of newKeys=%d", len(newKeys)))
 	}
 	nodeA, nodeB, nodeC := n.children[0], n.children[1], n.children[2]
@@ -536,7 +609,6 @@ func update3Node(n *Node23, newKeys []*Felt, nextKey *Felt, intermediateKeys []*
 				/* A is empty, a_next is the "next key"; B is empty, b_next is the "next key"; C is empty, c_next is the "next key" */
 				n.children = n.children[:0]
 				n.keys = n.keys[:0]
-				//n.isLeaf = true
 				if nodeA.isLeaf {
 					return nodeC.nextKey(), intermediateKeys
 				}
@@ -545,7 +617,10 @@ func update3Node(n *Node23, newKeys []*Felt, nextKey *Felt, intermediateKeys []*
 				/* A is empty, a_next is the "next key"; B is empty, b_next is the "next key"; C is not empty */
 				n.children = n.children[2:]
 				/// n.keys = []*Felt{nodeC.lastLeaf().nextKey()}
-				return nodeB.nextKey(), intermediateKeys
+				if nodeA.isLeaf {
+					return nodeB.nextKey(), intermediateKeys
+				}
+				return nil, intermediateKeys
 			}
 		} else {
 			if nodeC.isEmpty() {
@@ -602,7 +677,7 @@ func update3Node(n *Node23, newKeys []*Felt, nextKey *Felt, intermediateKeys []*
 				return nextKey, intermediateKeys
 			} else {
 				/* A is not empty; B is not empty; C is not empty */
-				/// n.keys = []*Felt{nodeA.lastLeaf().nextKey(), nodeB.lastLeaf().nextKey()}
+				n.keys = []*Felt{nodeA.lastLeaf().nextKey(), nodeB.lastLeaf().nextKey()}
 				return nextKey, intermediateKeys
 			}
 		}

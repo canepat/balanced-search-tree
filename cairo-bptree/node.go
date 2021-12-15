@@ -306,6 +306,14 @@ func (n *Node23) height() int {
 	}
 }
 
+func (n *Node23) keysInLevelOrder() []Felt {
+	keysByLevel := make([]Felt, 0)
+	for i := 0; i < n.height(); i++ {
+		keysByLevel = append(keysByLevel, n.keysByLevel(i)...)
+	}
+	return keysByLevel
+}
+
 func (n *Node23) keysByLevel(level int) []Felt {
 	if level == 0 {
 		return n.canonicalKeys()

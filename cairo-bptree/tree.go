@@ -88,11 +88,7 @@ func (t *Tree23) KeysInLevelOrder() []Felt {
 	if t.root == nil {
 		return []Felt{}
 	}
-	keysByLevel := make([]Felt, 0)
-	for i := 0; i < t.root.height(); i++ {
-		keysByLevel = append(keysByLevel, t.root.keysByLevel(i)...)
-	}
-	return keysByLevel
+	return t.root.keysInLevelOrder()
 }
 
 func (t *Tree23) WalkPostOrder(w Walker) []interface{} {

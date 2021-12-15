@@ -394,7 +394,7 @@ func deleteInternal(n *Node23, keysToDelete []Felt, stats *Stats) (deleted *Node
 					previousChild.lastLeaf().setNextKey(childNextKey)
 				}
 			}
-			if child != nil && child.childrenCount() == 1 {
+			if !previousChild.isEmpty() && child != nil && child.childrenCount() == 1 {
 				child.keys = child.keys[:0]
 				newLeft, newRight := mergeRight2Left(previousChild, child)
 				n.children = append(n.children[:previousIndex], append([]*Node23{newLeft, newRight}, n.children[i + 1:]...)...)
@@ -406,7 +406,7 @@ func deleteInternal(n *Node23, keysToDelete []Felt, stats *Stats) (deleted *Node
 				nextChild = n.children[nextIndex + 1]
 				nextIndex = nextIndex + 1
 			}
-			if child != nil && child.childrenCount() == 1 {
+			if !nextChild.isEmpty() && child != nil && child.childrenCount() == 1 {
 				child.keys = child.keys[:0]
 				newLeft, newRight := mergeLeft2Right(child, nextChild)
 				n.children = append([]*Node23{newLeft, newRight}, n.children[nextIndex + 1:]...)
@@ -620,7 +620,7 @@ func update3Node(n *Node23, newKeys []*Felt, nextKey *Felt, intermediateKeys []*
 				if nodeA.isLeaf {
 					return nodeB.nextKey(), intermediateKeys
 				}
-				return nil, intermediateKeys
+				return nextKey, intermediateKeys
 			}
 		} else {
 			if nodeC.isEmpty() {

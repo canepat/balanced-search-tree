@@ -577,7 +577,7 @@ func update2Node(n *Node23, newKeys []*Felt, nextKey *Felt, intermediateKeys []*
 			if nodeC.isLeaf {
 				return nodeC.nextKey(), intermediateKeys
 			}
-			return nil, intermediateKeys
+			return nextKey, intermediateKeys
 		} else {
 			/* A is empty, a_next is the "next key"; C is not empty */
 			n.children = n.children[1:]
@@ -630,7 +630,7 @@ func update3Node(n *Node23, newKeys []*Felt, nextKey *Felt, intermediateKeys []*
 				if nodeA.isLeaf {
 					return nodeC.nextKey(), intermediateKeys
 				}
-				return nil, intermediateKeys
+				return nextKey, intermediateKeys
 			} else {
 				/* A is empty, a_next is the "next key"; B is empty, b_next is the "next key"; C is not empty */
 				n.children = n.children[2:]

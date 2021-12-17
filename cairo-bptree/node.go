@@ -160,7 +160,7 @@ func (n *Node23) isValidInternal() (bool, error) {
 			if i == len(subtree)-1 {
 				continue
 			}
-			previous, next := subtree[i-1], subtree[i+1]
+			previous, next := subtree[i], subtree[i+1]
 			if previous.isLeaf && next.isLeaf {
 				// Previous node's next key must be equal to next node's first key
 				if previous.nextKey() != next.firstKey() {

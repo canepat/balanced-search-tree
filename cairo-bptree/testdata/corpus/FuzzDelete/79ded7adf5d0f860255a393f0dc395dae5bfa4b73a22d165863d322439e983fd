@@ -1,0 +1,3 @@
+go test fuzz v1
+[]byte("Jt ',\xc37\f\x00\u007f\xad퀇\x87")
+[]byte(",h\xff\xff\xd2b\x92Jt \xb5\xc37h\x00,,',,h\xff\xc37h\xe5")

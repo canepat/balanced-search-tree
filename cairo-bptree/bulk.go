@@ -439,41 +439,53 @@ func mergeLeft2Right(left, right *Node23) (newLeft, newRight *Node23) {
 	ensure(left.childrenCount() > 0, "mergeLeft2Right: left has no children")
 
 	if left.firstChild().childrenCount() == 1 {
-		if right.firstChild().childrenCount() < 3 {
-			_, newRightFirstChild := mergeLeft2Right(left.firstChild(), right.firstChild())
-			newRight = makeInternalNode(
-				append([]*Node23{newRightFirstChild}, right.children[1:]...),
-				right.keys,
-			)
-			newLeft = makeInternalNode([]*Node23{}, []*Felt{})
-			return newLeft, newRight
-		} else {
-			newLeft = makeInternalNode(
-				append([]*Node23{left.firstChild()}, right.firstChild()),
-				left.keys,
-			)
-			newRight = makeInternalNode([]*Node23{}, []*Felt{})
-			return newLeft, newRight
-		}
+		newLeftFirstChild, newRightFirstChild := mergeLeft2Right(left.firstChild(), right.firstChild())
+		left = makeInternalNode(
+			[]*Node23{newLeftFirstChild},
+			left.keys,
+		)
+		right = makeInternalNode(
+			append([]*Node23{newRightFirstChild}, right.children[1:]...),
+			right.keys,
+		)
 	}
 
 	if right.childrenCount() < 3 {
-		newRight = makeInternalNode(
-			append([]*Node23{left.firstChild()}, right.children...),
-			append([]*Felt{left.lastLeaf().nextKey()}, right.keys...),
-		)
-		if left.keyCount() > 0 && left.childrenCount() > 0{
-			newLeft = makeInternalNode(left.children[1:], left.keys[1:])
+		if !left.firstChild().isEmpty() {
+			if right.childrenCount() == 1 {
+				if right.firstChild().isEmpty() {
+					newLeft = left
+					newRight = makeInternalNode([]*Node23{}, []*Felt{})
+				} else {
+					newRight = makeInternalNode(
+						append([]*Node23{left.firstChild()}, right.children...),
+						[]*Felt{left.lastLeaf().nextKey()},
+					)
+					if left.keyCount() > 1 {
+						newLeft = makeInternalNode(left.children[1:], left.keys[1:])
+					} else {
+						newLeft = makeInternalNode(left.children[1:], left.keys)
+					}
+				}
+			} else {
+				newRight = makeInternalNode(
+					append([]*Node23{left.firstChild()}, right.children...),
+					append([]*Felt{left.lastLeaf().nextKey()}, right.keys...),
+				)
+				if left.keyCount() > 1 {
+					newLeft = makeInternalNode(left.children[1:], left.keys[1:])
+				} else {
+					newLeft = makeInternalNode(left.children[1:], left.keys)
+				}
+			}
 		} else {
+			newRight = right
 			newLeft = makeInternalNode([]*Node23{}, []*Felt{})
 		}
-		return newLeft, newRight
 	} else {
 		newLeft, newRight = mergeRight2Left(left, right)
-		//right.children = right.children[1:]
-		//right.keys = right.keys[1:]
-		return newLeft, newRight
 	}
+	return newLeft, newRight
 }
 
 func mergeRight2Left(left, right *Node23) (newLeft, newRight *Node23) {
@@ -481,41 +493,47 @@ func mergeRight2Left(left, right *Node23) (newLeft, newRight *Node23) {
 	ensure(right.childrenCount() > 0, "mergeRight2Left: right has no children")
 
 	if right.firstChild().childrenCount() == 1 {
-		if left.lastChild().childrenCount() < 3 {
-			newLeftLastChild, _ := mergeRight2Left(left.lastChild(), right.firstChild())
-			newLeft = makeInternalNode(
-				append(left.children[:len(left.children)-1], newLeftLastChild),
-				left.keys,
-			)
-			newRight = makeInternalNode([]*Node23{}, []*Felt{})
-			return newLeft, newRight
-		} else {
-			newRight = makeInternalNode(
-				append([]*Node23{left.lastChild()}, right.firstChild()),
-				right.keys,
-			)
-			newLeft = makeInternalNode([]*Node23{}, []*Felt{})
-			return newLeft, newRight
-		}
+		newLeftLastChild, newRightFirstChild := mergeRight2Left(left.lastChild(), right.firstChild())
+		left = makeInternalNode(
+			append(left.children[:len(left.children)-1], newLeftLastChild),
+			left.keys,
+		)
+		right = makeInternalNode(
+			[]*Node23{newRightFirstChild},
+			right.keys,
+		)
 	}
 
 	if left.childrenCount() < 3 {
-		newLeft = makeInternalNode(
-			append(left.children, right.firstChild()),
-			append(left.keys, right.firstLeaf().firstKey()),
-		)
-		if right.keyCount() > 0 && right.childrenCount() > 0 {
-			newRight = makeInternalNode(right.children[1:], right.keys[1:])
+		if !right.firstChild().isEmpty() {
+			if left.childrenCount() == 1 {
+				if left.firstChild().isEmpty() {
+					newLeft = makeInternalNode([]*Node23{}, []*Felt{})
+					newRight = right
+				} else {
+					newLeft = makeInternalNode(append(left.children, right.firstChild()), []*Felt{right.firstLeaf().firstKey()})
+					if right.keyCount() > 1 {
+						newRight = makeInternalNode(right.children[1:], right.keys[1:])
+					} else {
+						newRight = makeInternalNode(right.children[1:], right.keys)
+					}
+				}
+			} else {
+				newLeft = makeInternalNode(append(left.children, right.firstChild()), append(left.keys, right.firstLeaf().firstKey()))
+				if right.keyCount() > 1 {
+					newRight = makeInternalNode(right.children[1:], right.keys[1:])
+				} else {
+					newRight = makeInternalNode(right.children[1:], right.keys)
+				}
+			}
 		} else {
+			newLeft = left
 			newRight = makeInternalNode([]*Node23{}, []*Felt{})
 		}
-		return newLeft, newRight
 	} else {
 		newLeft, newRight = mergeLeft2Right(left, right)
-		//left.children = left.children[:len(left.children)-1]
-		//left.keys = left.keys[:len(left.keys)-1]
-		return newLeft, newRight
 	}
+	return newLeft, newRight
 }
 
 func splitKeys(n *Node23, keysToDelete []Felt) [][]Felt {
@@ -677,7 +695,7 @@ func update3Node(n *Node23, newKeys []*Felt, nextKey *Felt, intermediateKeys []*
 				return nextKey, intermediateKeys
 			} else {
 				/* A is not empty; B is not empty; C is not empty */
-				n.keys = []*Felt{nodeA.lastLeaf().nextKey(), nodeB.lastLeaf().nextKey()}
+				///n.keys = []*Felt{nodeA.lastLeaf().nextKey(), nodeB.lastLeaf().nextKey()}
 				return nextKey, intermediateKeys
 			}
 		}

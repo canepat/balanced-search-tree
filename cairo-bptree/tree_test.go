@@ -26,7 +26,8 @@ func assertTwoThreeTree(t *testing.T, tree *Tree23, expectedKeysLevelOrder []Fel
 
 func require23Tree(t *testing.T, tree *Tree23, expectedKeysLevelOrder []Felt, input1, input2 []byte) {
 	treeValid, err := tree.IsValid()
-	require.True(t, treeValid, "2-3-tree properties do not hold: input [%v %v], error: %v", input1, input2, err)
+	require.True(t, treeValid, "2-3-tree properties do not hold: input [%v %v] [%+q %+q], error: %v",
+		input1, input2, string(input1), string(input2), err)
 	if expectedKeysLevelOrder != nil {
 		assert.Equal(t, expectedKeysLevelOrder, tree.KeysInLevelOrder(), "different keys by level")
 	}
@@ -349,7 +350,6 @@ func TestDelete(t *testing.T) {
 }
 
 func FuzzUpsert(f *testing.F) {
-	f.Add([]byte{40, 29, 103, 140, 73, 172, 212, 68, 215, 71, 108, 161, 250, 232, 3}, []byte{140, 161})
 	f.Fuzz(func (t *testing.T, input1, input2 []byte) {
 		//t.Parallel()
 		keyFactory := NewKeyBinaryFactory(1)
@@ -370,12 +370,6 @@ func FuzzUpsert(f *testing.F) {
 }
 
 func FuzzDelete(f *testing.F) {
-	f.Add([]byte{83, 216, 1, 159, 182, 155, 189, 215, 16}, []byte{216, 159})
-	f.Add([]byte("\xff\\\x00\bY\xdf\xdf"), []byte("\xff\x00\x00\\\x00\bY\xe4\xdf\xe5\xe5"))
-	f.Add([]byte("S\xd8\x01\u007fa\x9b\x9b"), []byte("S\xd8\x01\u007faaaaaaaa\xb6\x9b\xb6\x80\xbd\xd7\x10a"))
-	f.Add([]byte{1, 83, 97, 127, 155, 216, 252}, []byte{1, 16, 83, 97, 105, 127, 128, 155, 182, 189, 215, 216})
-	f.Add([]byte{40, 140, 29, 170, 103, 189, 215, 71, 108, 161, 250, 232, 3}, []byte{140, 161})
-	f.Add([]byte{40, 29, 103, 140, 73, 172, 212, 68, 215, 71, 108, 161, 250, 232, 3}, []byte{140, 161})
 	f.Fuzz(func (t *testing.T, input1, input2 []byte) {
 		//t.Parallel()
 		//fmt.Printf("input1=%v input2=%v\n", input1, input2)
@@ -387,12 +381,12 @@ func FuzzDelete(f *testing.F) {
 		keysToDelete := keyFactory.NewUniqueKeys(bufio.NewReader(bytesReader2))
 		//fmt.Printf("kvStatePairs=%v keysToDelete=%v\n", kvStatePairs, keysToDelete)
 		require.True(t, sort.IsSorted(Keys(keysToDelete)), "keysToDelete is not sorted")
-		tree := NewTree23(kvStatePairs)
-		//tree.GraphAndPicture("fuzz_tree_delete1")
-		require23Tree(t, tree, nil, input1, input2)
-		tree = tree.Delete(keysToDelete)
-		//tree.GraphAndPicture("fuzz_tree_delete2")
-		require23Tree(t, tree, nil, input1, input2)
+		tree1 := NewTree23(kvStatePairs)
+		//tree1.GraphAndPicture("fuzz_tree_delete1")
+		require23Tree(t, tree1, nil, input1, input2)
+		tree2 := tree1.Delete(keysToDelete)
+		//tree2.GraphAndPicture("fuzz_tree_delete2")
+		require23Tree(t, tree2, nil, input1, input2)
 		// TODO: check the difference properties
 		// Check that *each* T1 node is present either in Td or in T2
 		// Check that *each* T2 node is not present in Td

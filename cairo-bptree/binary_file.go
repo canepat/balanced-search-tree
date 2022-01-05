@@ -42,9 +42,6 @@ func CreateRandomBinaryFile(path string, size int64) *BinaryFile {
 
 	err = bufferedFile.Flush()
 	ensure(err == nil, fmt.Sprintf("CreateRandomBinaryFile: error during flushing %s\n", err))
-	offset, err := file.Seek(0, 0)
-	ensure(err == nil, fmt.Sprintf("CreateRandomBinaryFile: error during seeking %s\n", err))
-	ensure(offset == 0, fmt.Sprintf("CreateRandomBinaryFile: unexpected offset after seeking: %d\n", offset))
 
 	binaryFile := &BinaryFile{
 		path : file.Name(),
@@ -53,6 +50,7 @@ func CreateRandomBinaryFile(path string, size int64) *BinaryFile {
 		file: file,
 		opened: true,
 	}
+	binaryFile.rewind()
 	return binaryFile
 }
 
@@ -74,6 +72,12 @@ func OpenBinaryFile(path string) *BinaryFile {
 	return binaryFile
 }
 
+func (f *BinaryFile) rewind() {
+	offset, err := f.file.Seek(0, io.SeekStart)
+	ensure(err == nil, fmt.Sprintf("rewind: error during seeking %s\n", err))
+	ensure(offset == 0, fmt.Sprintf("rewind: unexpected offset after seeking: %d\n", offset))
+}
+
 func (f *BinaryFile) Name() string {
 	return f.path
 }
@@ -83,7 +87,8 @@ func (f *BinaryFile) Size() int64 {
 }
 
 func (f *BinaryFile) NewReader() *bufio.Reader {
-	ensure(f.opened, fmt.Sprintf("Close: file %s is not opened\n", f.path))
+	ensure(f.opened, fmt.Sprintf("NewReader: file %s is not opened\n", f.path))
+	f.rewind()
 	return bufio.NewReader(f.file)
 }
 
@@ -91,4 +96,5 @@ func (f *BinaryFile) Close() {
 	ensure(f.opened, fmt.Sprintf("Close: file %s is not opened\n", f.path))
 	err := f.file.Close()
 	ensure(err == nil, fmt.Sprintf("Close: cannot close file %s, error %s\n", f.path, err))
+	f.opened = false
 }

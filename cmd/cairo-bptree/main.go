@@ -49,6 +49,58 @@ type Options struct {
 	graph			bool
 }
 
+func bulkUpsert(keyFactory cairo_bptree.KeyFactory, kvPairs, stateChanges cairo_bptree.KeyValues) {
+	log.Printf("UPSERT: creating tree with #kvPairs=%v\n", kvPairs.Len())
+	state := cairo_bptree.NewTree23(kvPairs)
+	log.Printf("UPSERT: created tree: %v\n", state)
+
+	if options.graph {
+		state.GraphAndPicture("state")
+	}
+
+	log.Printf("UPSERT: number of nodes in the current state tree: %d\n", state.Size())
+	log.Printf("UPSERT: number of state changes: %d\n", stateChanges.Len())
+	log.Debugf("UPSERT: state changes as key-value pairs: %v\n", stateChanges)
+
+	stats := &cairo_bptree.Stats{}
+	stateAfterUpsert := state.UpsertWithStats(stateChanges, stats)
+
+	log.Printf("UPSERT: number of nodes in the next state tree: %d\n", stateAfterUpsert.Size())
+	log.Printf("UPSERT: number of re-hashed nodes for the next state: %d\n", stats.RehashedCount)
+	log.Printf("UPSERT: number of existing nodes exposed: %d\n", stats.ExposedCount)
+	log.Printf("UPSERT: number of new nodes exposed: %d\n", stats.RehashedCount-stats.ExposedCount)
+	log.Printf("UPSERT: number of created nodes: %d\n", stats.CreatedCount)
+	log.Printf("UPSERT: number of updated values: %d\n", stats.UpdatedCount)
+
+	if options.graph {
+		stateAfterUpsert.GraphAndPicture("stateAfterUpsert")
+	}
+}
+
+func bulkDelete(keyFactory cairo_bptree.KeyFactory, kvPairs cairo_bptree.KeyValues, stateDeletes cairo_bptree.Keys) {
+	log.Printf("DELETE: creating tree with #kvPairs=%v\n", kvPairs.Len())
+	state := cairo_bptree.NewTree23(kvPairs)
+	log.Printf("DELETE: created tree: %v\n", state)
+
+	log.Printf("DELETE: number of nodes in the current state tree: %d\n", state.Size())
+	log.Printf("DELETE: number of state deletes: %d\n", stateDeletes.Len())
+	log.Debugf("DELETE: state deletes as keys: %v\n", stateDeletes)
+
+	stats := &cairo_bptree.Stats{}
+	stateAfterDelete := state.DeleteWithStats(stateDeletes, stats)
+
+	log.Printf("DELETE: number of nodes in the next state tree: %d\n", stateAfterDelete.Size())
+	log.Printf("DELETE: number of re-hashed nodes for the next state: %d\n", stats.RehashedCount)
+	log.Printf("DELETE: number of existing nodes exposed: %d\n", stats.ExposedCount)
+	log.Printf("DELETE: number of nodes exposed unchanged: %d\n", stats.ExposedCount-stats.RehashedCount)
+	log.Printf("DELETE: number of deleted nodes: %d\n", stats.DeletedCount)
+	log.Printf("DELETE: number of updated nodes: %d\n", stats.UpdatedCount)
+
+	if options.graph {
+		stateAfterDelete.GraphAndPicture("stateAfterDelete")
+	}
+}
+
 func main() {
 	flag.Parse()
 
@@ -101,29 +153,12 @@ func main() {
 	keyFactory := cairo_bptree.NewKeyBinaryFactory(int(options.keySize))
 	log.Printf("Reading unique key-value pairs from: %s\n", stateFile.Name())
 	kvPairs := keyFactory.NewUniqueKeyValues(stateFile.NewReader())
-	log.Printf("Creating tree with #kvPairs=%v\n", kvPairs.Len())
-	state := cairo_bptree.NewTree23(kvPairs)
-	log.Printf("Created tree: %v\n", state)
+
 	log.Printf("Reading unique key-value pairs from: %s\n", stateChangesFile.Name())
 	stateChanges := keyFactory.NewUniqueKeyValues(stateChangesFile.NewReader())
+	bulkUpsert(keyFactory, kvPairs, stateChanges)
 
-	log.Printf("UPSERT: number of nodes in the current state tree: %d\n", state.Size())
-	log.Printf("UPSERT: number of state changes: %d\n", stateChanges.Len())
-
-	if options.graph {
-		state.GraphAndPicture("state")
-	}
-
-	stats := &cairo_bptree.Stats{}
-	newState := state.UpsertWithStats(stateChanges, stats)
-	rehashedNodes := newState.CountNewHashes()
-
-	log.Printf("UPSERT: number of nodes in the next state tree: %d\n", newState.Size())
-	log.Printf("UPSERT: number of re-hashed nodes for the next state: %d\n", rehashedNodes)
-	log.Printf("UPSERT: number of existing nodes exposed: %d\n", stats.ExposedCount)
-	log.Printf("UPSERT: number of new nodes exposed: %d\n", rehashedNodes-stats.ExposedCount)
-
-	if options.graph {
-		newState.GraphAndPicture("newState")
-	}
+	log.Printf("Reading unique keys from: %s\n", stateChangesFile.Name())
+	stateDeletes := keyFactory.NewUniqueKeys(stateChangesFile.NewReader())
+	bulkDelete(keyFactory, kvPairs, stateDeletes)
 }

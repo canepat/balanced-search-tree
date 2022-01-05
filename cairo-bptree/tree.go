@@ -2,12 +2,14 @@ package cairo_bptree
 
 import (
 	"fmt"
-
-	log "github.com/sirupsen/logrus"
 )
 
 type Stats struct {
-	ExposedCount uint
+	ExposedCount  uint
+	RehashedCount uint
+	CreatedCount  uint
+	UpdatedCount  uint
+	DeletedCount  uint
 }
 
 type Tree23 struct {
@@ -32,16 +34,6 @@ func (t *Tree23) Size() int {
 	count := 0
 	t.WalkPostOrder(func(n *Node23) interface{} { count++; return nil })
 	return count
-}
-
-func (t *Tree23) CountNewHashes() (hashedCount uint) {
-	t.WalkPostOrder(func(n *Node23) interface{} {
-		if n.exposed {
-			hashedCount++
-		}
-		return nil
-	})
-	return hashedCount
 }
 
 func (t *Tree23) RootHash() []byte {
@@ -120,8 +112,9 @@ func (t *Tree23) UpsertWithStats(kvItems KeyValues, stats *Stats) *Tree23 {
 	if len(promoted) == 1 {
 		t.root = promoted[0]
 	} else {
-		t.root = promote(promoted, intermediateKeys)
+		t.root = promote(promoted, intermediateKeys, stats)
 	}
+	stats.RehashedCount = t.countUpsertNewHashes()
 	return t
 }
 
@@ -129,11 +122,31 @@ func (t *Tree23) Delete(keyToDelete []Felt) *Tree23 {
 	return t.DeleteWithStats(keyToDelete, &Stats{})
 }
 
-func (t *Tree23) DeleteWithStats(keyToDelete []Felt, stats *Stats) *Tree23 {
-	log.Debugf("Delete: t=%p root=%p keyToDelete=%v\n", t, t.root, keyToDelete)
-	newRoot, nextKey, intermediateKeys := delete(t.root, keyToDelete, stats)
-	t.root, _ = demote(newRoot, nextKey, intermediateKeys)
+func (t *Tree23) DeleteWithStats(keysToDelete []Felt, stats *Stats) *Tree23 {
+	newRoot, nextKey, intermediateKeys := delete(t.root, keysToDelete, stats)
+	t.root, _ = demote(newRoot, nextKey, intermediateKeys, stats)
+	stats.RehashedCount = t.countDeleteNewHashes()
 	return t
+}
+
+func (t *Tree23) countUpsertNewHashes() (hashedCount uint) {
+	t.WalkPostOrder(func(n *Node23) interface{} {
+		if n.exposed {
+			hashedCount++
+		}
+		return nil
+	})
+	return hashedCount
+}
+
+func (t *Tree23) countDeleteNewHashes() (hashedCount uint) {
+	t.WalkPostOrder(func(n *Node23) interface{} {
+		if n.updated {
+			hashedCount++
+		}
+		return nil
+	})
+	return hashedCount
 }
 
 func (t *Tree23) reset() {

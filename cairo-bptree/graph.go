@@ -21,6 +21,7 @@ func (g *Node23Graph) saveDot(filename string, debug bool) {
 	palette := []string{"#FDF3D0", "#DCE8FA", "#D9E7D6", "#F1CFCD", "#F5F5F5", "#E1D5E7", "#FFE6CC", "white"}
 	const unexposedIndex = 0
 	const exposedIndex = 1
+	const updatedIndex = 2
 
 	f, err := os.OpenFile(filename+".dot", os.O_RDWR|os.O_CREATE, 0755)
 	if err != nil {
@@ -80,8 +81,13 @@ func (g *Node23Graph) saveDot(filename string, debug bool) {
 		}
 		var color string
 		if n.exposed {
-			color = palette[exposedIndex]
+			if n.updated {
+				color = palette[updatedIndex]
+			} else {
+				color = palette[exposedIndex]
+			}
 		} else {
+			ensure(!n.updated, fmt.Sprintf("saveDot: node %v is not exposed but updated", n))
 			color = palette[unexposedIndex]
 		}
 		s := fmt.Sprintf("%d [label=\"%s|{<C>%s|%s}|%s\" style=filled fillcolor=\"%s\"];\n", n.rawPointer(), left, nodeId, down, right, color)

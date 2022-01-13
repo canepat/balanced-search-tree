@@ -9,7 +9,7 @@ import (
 )
 
 const DEFAULT_GENERATE bool = false
-const DEFAULT_KEY_SIZE uint = 8 // TODO: 4 and change Felt to []byte
+const DEFAULT_KEY_SIZE uint = 8
 const DEFAULT_NESTED bool = false
 const DEFAULT_LOG_LEVEL string = "INFO"
 const DEFAULT_GRAPH bool = false
@@ -106,11 +106,13 @@ func main() {
 
 	if options.generate {
 		if options.stateFileSize == 0 || options.stateChangesFileSize == 0 {
+			log.Errorln("both -stateFileSize and -stateChangesFileSize must be present when -generate=true")
 			flag.Usage()
 			os.Exit(0)
 		}
 	} else {
 		if options.stateFileName == "" || options.stateChangesFileName == "" {
+			log.Errorln("both -stateFileName and -stateChangesFileName must be present when -generate=false")
 			flag.Usage()
 			os.Exit(0)
 		}

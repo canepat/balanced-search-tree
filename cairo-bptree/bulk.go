@@ -188,6 +188,9 @@ func addOrReplaceLeaf(n *Node23, kvItems KeyValues, stats *Stats) {
 		ensure(false, fmt.Sprintf("addOrReplaceLeaf: invalid key count %d", n.keyCount()))
 	}
 	
+	n.updated = true
+	stats.UpdatedCount++
+
 	// Restore next key/value
 	n.keys = append(n.keys, nextKey)
 	n.values = append(n.values, nextValue)
@@ -202,19 +205,15 @@ func addOrReplaceLeaf1(n *Node23, kvItems KeyValues, stats *Stats) {
 	if index0 < kvItems.Len() {
 		// Insert keys/values concatenating new ones around key0
 		n.keys = append(make([]*Felt, 0), kvItems.keys[:index0]...)
-		if *kvItems.keys[index0] != *key0 {
-			n.keys = append(n.keys, key0)
-		}
-		n.keys = append(n.keys, kvItems.keys[index0:]...)
-
 		n.values = append(make([]*Felt, 0), kvItems.values[:index0]...)
-		if *kvItems.keys[index0] != *key0 {
-			n.values = append(n.values, value0)
-		}
-		n.values = append(n.values, kvItems.values[index0:]...)
+		n.keys = append(n.keys, key0)
+		n.values = append(n.values, value0)
 		if *kvItems.keys[index0] == *key0 {
-			n.updated = true
-			stats.UpdatedCount++
+			n.keys = append(n.keys, kvItems.keys[index0+1:]...)
+			n.values = append(n.values, kvItems.values[index0+1:]...)
+		} else {
+			n.keys = append(n.keys, kvItems.keys[index0:]...)
+			n.values = append(n.values, kvItems.values[index0:]...)
 		}
 	} else {
 		// key0 greater than any input key
@@ -235,51 +234,40 @@ func addOrReplaceLeaf2(n *Node23, kvItems KeyValues, stats *Stats) {
 		if index1 < kvItems.Len() {
 			// Insert keys/values concatenating new ones around key0 and key1
 			n.keys = append(make([]*Felt, 0), kvItems.keys[:index0]...)
-			if *kvItems.keys[index0] != *key0 {
-				n.keys = append(n.keys, key0)
-			}
-			n.keys = append(n.keys, kvItems.keys[index0:index1]...)
-			if *kvItems.keys[index1] != *key1 {
-				n.keys = append(n.keys, key1)
-			}
-			n.keys = append(n.keys, kvItems.keys[index1:]...)
-
 			n.values = append(make([]*Felt, 0), kvItems.values[:index0]...)
-			if *kvItems.keys[index0] != *key0 {
-				n.values = append(n.values, value0)
-			}
-			n.values = append(n.values, kvItems.values[index0:index1]...)
-			if *kvItems.keys[index1] != *key1 {
-				n.values = append(n.values, value1)
-			}
-			n.values = append(n.values, kvItems.values[index1:]...)
+			n.keys = append(n.keys, key0)
+			n.values = append(n.values, value0)
 			if *kvItems.keys[index0] == *key0 {
-				n.updated = true
-				stats.UpdatedCount++
+				n.keys = append(n.keys, kvItems.keys[index0+1:index1]...)
+				n.values = append(n.values, kvItems.values[index0+1:index1]...)
+			} else {
+				n.keys = append(n.keys, kvItems.keys[index0:index1]...)
+				n.values = append(n.values, kvItems.values[index0:index1]...)
 			}
+			n.keys = append(n.keys, key1)
+			n.values = append(n.values, value1)
 			if *kvItems.keys[index1] == *key1 {
-				n.updated = true
-				stats.UpdatedCount++
+				n.keys = append(n.keys, kvItems.keys[index1+1:]...)
+				n.values = append(n.values, kvItems.values[index1+1:]...)
+			} else {
+				n.keys = append(n.keys, kvItems.keys[index1:]...)
+				n.values = append(n.values, kvItems.values[index1:]...)
 			}
 		} else {
 			// Insert keys/values concatenating new ones around key0, then add key1
 			n.keys = append(make([]*Felt, 0), kvItems.keys[:index0]...)
-			if *kvItems.keys[index0] != *key0 {
-				n.keys = append(n.keys, key0)
-			}
-			n.keys = append(n.keys, kvItems.keys[index0:]...)
-			n.keys = append(n.keys, key1)
-	
 			n.values = append(make([]*Felt, 0), kvItems.values[:index0]...)
-			if *kvItems.keys[index0] != *key0 {
-				n.values = append(n.values, value0)
-			}
-			n.values = append(n.values, kvItems.values[index0:]...)
-			n.values = append(n.values, value1)
+			n.keys = append(n.keys, key0)
+			n.values = append(n.values, value0)
 			if *kvItems.keys[index0] == *key0 {
-				n.updated = true
-				stats.UpdatedCount++
+				n.keys = append(n.keys, kvItems.keys[index0+1:]...)
+				n.values = append(n.values, kvItems.values[index0+1:]...)
+			} else {
+				n.keys = append(n.keys, kvItems.keys[index0:]...)
+				n.values = append(n.values, kvItems.values[index0:]...)
 			}
+			n.keys = append(n.keys, key1)
+			n.values = append(n.values, value1)
 		}
 	} else {
 		ensure(index1 == index0, "addOrReplaceLeaf2: keys not ordered")

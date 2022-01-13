@@ -83,7 +83,7 @@ func (n *Node23) String() string {
 
 func makeInternalNode(children []*Node23, keys []*Felt, stats *Stats) *Node23 {
 	stats.CreatedCount++
-	n := &Node23{isLeaf: false, children: children, keys: keys, values: make([]*Felt, 0), exposed: true}
+	n := &Node23{isLeaf: false, children: children, keys: keys, values: make([]*Felt, 0), exposed: true, updated: true}
 	return n
 }
 
@@ -91,7 +91,7 @@ func makeLeafNode(keys, values []*Felt, stats *Stats) *Node23 {
 	ensure(len(keys) > 0, "number of keys is zero")
 	ensure(len(keys) == len(values), "keys and values have different cardinality")
 	stats.CreatedCount++
-	n := &Node23{isLeaf: true, children: make([]*Node23, 0), keys: keys, values: values, exposed: true}
+	n := &Node23{isLeaf: true, children: make([]*Node23, 0), keys: keys, values: values, exposed: true, updated: true}
 	return n
 }
 

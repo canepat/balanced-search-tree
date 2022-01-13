@@ -2,14 +2,13 @@ package main
 
 import (
 	"bufio"
-	"fmt"
+	"flag"
 	"os"
 	"path/filepath"
-	"strconv"
 	"strings"
 
-	log "github.com/sirupsen/logrus"
 	cairo "github.com/canepat/bst/cairo-avl"
+	log "github.com/sirupsen/logrus"
 )
 
 func check(err error) {
@@ -74,6 +73,8 @@ func readStateChangesFromCsvFile(stateChangesFileName string) (d *cairo.Dict, er
 	return d, err
 }
 
+var options Options
+
 func init() {
 	const hasCustomFormatter = false
 	if hasCustomFormatter {
@@ -82,97 +83,78 @@ func init() {
 		customFormatter.FullTimestamp = true
 		log.SetFormatter(customFormatter)
 	}
+
+	options = Options{}
+	flag.StringVar(&options.stateFileName, "stateFileName", "", "the state file name")
+	flag.StringVar(&options.stateChangesFileName, "stateChangesFileName", "", "the state-change file name")
+	flag.IntVar(&options.keySize, "keySize", 4, "the key size in bytes")
+	flag.BoolVar(&options.nested, "nested", true, "flag indicating if tree should be nested or not")
+	flag.StringVar(&options.logLevel, "logLevel", "INFO", "the logging level")
+	flag.BoolVar(&options.graph, "graph", false, "flag indicating if tree graph should be saved or not")
 }
 
-func parseKeySize() int {
-	keySize := 4
-	if len(os.Args) > 3 {
-		var err error
-		keySize, err = strconv.Atoi(os.Args[3])
-		if err != nil {
-			log.Fatalln("keySize argument error: ", err)
-			os.Exit(0)
-		}
-	}
-	return keySize
-}
-
-func parseNested() bool {
-	nested := true
-	if len(os.Args) > 4 {
-		var err error
-		nested, err = strconv.ParseBool(os.Args[4])
-		if err != nil {
-			log.Fatalln("nested argument error: ", err)
-			os.Exit(0)
-		}
-	}
-	return nested
-}
-
-func parseLogLevel() log.Level {
-	level := log.InfoLevel
-	if len(os.Args) > 5 {
-		var err error
-		level, err = log.ParseLevel(os.Args[5])
-		if err != nil {
-			log.Fatalln("logLevel argument error: ", err)
-			os.Exit(0)
-		}
-	}
-	return level
+type Options struct {
+	stateFileName		string
+	stateChangesFileName	string
+	keySize			int
+	nested			bool
+	logLevel		string
+	graph			bool
 }
 
 func main() {
-	if len(os.Args) < 3 {
-		fmt.Println("usage: main <stateFilename> <stateChangesFilename> [<keySize>] [<nested>] [<logLevel>]")
+	flag.Parse()
+
+	level, err := log.ParseLevel(options.logLevel)
+	if err != nil {
+		log.Fatalln("logLevel argument error: ", err)
 		os.Exit(0)
 	}
-	var err error
-	stateFileName := os.Args[1]
-	stateChangesFileName := os.Args[2]
-	keySize := parseKeySize()
-	nested := parseNested()
-	logLevel := parseLogLevel()
+	log.SetLevel(level)
 
-	log.SetLevel(logLevel)
+	log.Printf("Name of the state file: %s\n", options.stateFileName)
+	log.Printf("Name of the state changes file: %s\n", options.stateChangesFileName)
+	log.Printf("Size of the key in bytes: %d\n", options.keySize)
+	log.Printf("Trees are nested: %t\n", options.nested)
+	log.Printf("Log level: %s\n", options.logLevel)
 
-	log.Printf("Name of the state file: %s\n", stateFileName)
-	log.Printf("Name of the state changes file: %s\n", stateChangesFileName)
-	log.Printf("Size of the key in bytes: %d\n", keySize)
-	log.Printf("Trees are nested: %t\n", nested)
-	log.Printf("Log level: %s\n", logLevel)
-
-	stateFileExt := filepath.Ext(stateFileName)
-	stateChangesFileExt := filepath.Ext(stateChangesFileName)
+	stateFileExt := filepath.Ext(options.stateFileName)
+	stateChangesFileExt := filepath.Ext(options.stateChangesFileName)
 	var state *cairo.Node
 	var stateChanges *cairo.Dict
 	if stateFileExt == ".csv" && stateChangesFileExt == ".csv" {
-		state, err = readStateFromCsvFile(stateFileName)
+		state, err = readStateFromCsvFile(options.stateFileName)
 		if err != nil {
 			log.Fatalln("error reading CSV state file: %s", err)
 			os.Exit(1)
 		}
-		stateChanges, err = readStateChangesFromCsvFile(stateChangesFileName)
+		stateChanges, err = readStateChangesFromCsvFile(options.stateChangesFileName)
 		if err != nil {
 			log.Fatalln("error reading CSV state change file: %s", err)
 			os.Exit(1)
 		}
 	} else {
-		state, err = readStateFromBinaryFile(stateFileName, keySize, nested)
+		state, err = readStateFromBinaryFile(options.stateFileName, options.keySize, options.nested)
 		if err != nil {
 			log.Fatalln("error reading BIN state file: %s", err)
 			os.Exit(1)
 		}
-		stateChanges, err = readStateChangesFromBinaryFile(stateChangesFileName, keySize, nested)
+		stateChanges, err = readStateChangesFromBinaryFile(options.stateChangesFileName, options.keySize, options.nested)
 		if err != nil {
 			log.Fatalln("error reading BIN state change file: %s", err)
 			os.Exit(1)
 		}
 	}
+
+	if options.graph {
+		state.GraphAndPicture("state_" + outputNameFromInputName(options.stateFileName), /*debug=*/false)
+	}
+
 	unionStats := &cairo.Counters{}
 	newState := cairo.Union(state, stateChanges, unionStats)
-	newState.GraphAndPicture("union_new_" + outputNameFromInputName(stateFileName), /*debug=*/false)
+	if options.graph {
+		newState.GraphAndPicture("stateAfterUnion_" + outputNameFromInputName(options.stateFileName), /*debug=*/false)
+	}
 
 	log.Printf("UNION: Number of nodes in the current state tree: %d\n", state.Size())
 	log.Printf("UNION: Number of nodes in the state update tree: %d\n", stateChanges.Size())
@@ -183,7 +165,9 @@ func main() {
 
 	diffStats := &cairo.Counters{}
 	newState = cairo.Difference(state, stateChanges, diffStats)
-	newState.GraphAndPicture("diff_new_" + outputNameFromInputName(stateFileName), /*debug=*/false)
+	if options.graph {
+		newState.GraphAndPicture("stateAfterDiff_" + outputNameFromInputName(options.stateFileName), /*debug=*/false)
+	}
 
 	log.Printf("DIFFERENCE: Number of nodes in the current state tree: %d\n", state.Size())
 	log.Printf("DIFFERENCE: Number of nodes in the state update tree: %d\n", stateChanges.Size())

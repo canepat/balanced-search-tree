@@ -36,6 +36,7 @@ func upsertLeaf(n *Node23, kvItems KeyValues, stats *Stats) (nodes []*Node23, ne
 	if !n.exposed {
 		n.exposed = true
 		stats.ExposedCount++
+		stats.OpeningHashes += n.howManyHashes()
 	}
 
 	currentFirstKey := n.firstKey()
@@ -80,6 +81,7 @@ func upsertInternal(n *Node23, kvItems KeyValues, stats *Stats) (nodes []*Node23
 	if !n.exposed {
 		n.exposed = true
 		stats.ExposedCount++
+		stats.OpeningHashes += n.howManyHashes()
 	}
 
 	itemSubsets := splitItems(n, kvItems)
@@ -187,9 +189,6 @@ func addOrReplaceLeaf(n *Node23, kvItems KeyValues, stats *Stats) {
 	default:
 		ensure(false, fmt.Sprintf("addOrReplaceLeaf: invalid key count %d", n.keyCount()))
 	}
-	
-	n.updated = true
-	stats.UpdatedCount++
 
 	// Restore next key/value
 	n.keys = append(n.keys, nextKey)
@@ -209,8 +208,11 @@ func addOrReplaceLeaf1(n *Node23, kvItems KeyValues, stats *Stats) {
 		n.keys = append(n.keys, key0)
 		n.values = append(n.values, value0)
 		if *kvItems.keys[index0] == *key0 {
+			// Incoming key matches an existing key: update
 			n.keys = append(n.keys, kvItems.keys[index0+1:]...)
 			n.values = append(n.values, kvItems.values[index0+1:]...)
+			n.updated = true
+			stats.UpdatedCount++
 		} else {
 			n.keys = append(n.keys, kvItems.keys[index0:]...)
 			n.values = append(n.values, kvItems.values[index0:]...)
@@ -238,8 +240,11 @@ func addOrReplaceLeaf2(n *Node23, kvItems KeyValues, stats *Stats) {
 			n.keys = append(n.keys, key0)
 			n.values = append(n.values, value0)
 			if *kvItems.keys[index0] == *key0 {
+				// Incoming key matches an existing key: update
 				n.keys = append(n.keys, kvItems.keys[index0+1:index1]...)
 				n.values = append(n.values, kvItems.values[index0+1:index1]...)
+				n.updated = true
+				stats.UpdatedCount++
 			} else {
 				n.keys = append(n.keys, kvItems.keys[index0:index1]...)
 				n.values = append(n.values, kvItems.values[index0:index1]...)
@@ -247,8 +252,13 @@ func addOrReplaceLeaf2(n *Node23, kvItems KeyValues, stats *Stats) {
 			n.keys = append(n.keys, key1)
 			n.values = append(n.values, value1)
 			if *kvItems.keys[index1] == *key1 {
+				// Incoming key matches an existing key: update
 				n.keys = append(n.keys, kvItems.keys[index1+1:]...)
 				n.values = append(n.values, kvItems.values[index1+1:]...)
+				if !n.updated {
+					n.updated = true
+					stats.UpdatedCount++
+				}
 			} else {
 				n.keys = append(n.keys, kvItems.keys[index1:]...)
 				n.values = append(n.values, kvItems.values[index1:]...)
@@ -260,8 +270,11 @@ func addOrReplaceLeaf2(n *Node23, kvItems KeyValues, stats *Stats) {
 			n.keys = append(n.keys, key0)
 			n.values = append(n.values, value0)
 			if *kvItems.keys[index0] == *key0 {
+				// Incoming key matches an existing key: update
 				n.keys = append(n.keys, kvItems.keys[index0+1:]...)
 				n.values = append(n.values, kvItems.values[index0+1:]...)
+				n.updated = true
+				stats.UpdatedCount++
 			} else {
 				n.keys = append(n.keys, kvItems.keys[index0:]...)
 				n.values = append(n.values, kvItems.values[index0:]...)
@@ -321,6 +334,7 @@ func deleteLeaf(n *Node23, keysToDelete []Felt, stats *Stats) (deleted *Node23, 
 	if !n.exposed {
 		n.exposed = true
 		stats.ExposedCount++
+		stats.OpeningHashes += n.howManyHashes()
 	}
 
 	currentFirstKey := n.firstKey()
@@ -395,6 +409,7 @@ func deleteInternal(n *Node23, keysToDelete []Felt, stats *Stats) (deleted *Node
 	if !n.exposed {
 		n.exposed = true
 		stats.ExposedCount++
+		stats.OpeningHashes += n.howManyHashes()
 	}
 
 	keySubsets := splitKeys(n, keysToDelete)

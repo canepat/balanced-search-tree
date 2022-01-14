@@ -10,6 +10,8 @@ type Stats struct {
 	CreatedCount  uint
 	UpdatedCount  uint
 	DeletedCount  uint
+	OpeningHashes uint
+	ClosingHashes uint
 }
 
 type Tree23 struct {
@@ -114,7 +116,7 @@ func (t *Tree23) UpsertWithStats(kvItems KeyValues, stats *Stats) *Tree23 {
 	} else {
 		t.root = promote(promoted, intermediateKeys, stats)
 	}
-	stats.RehashedCount = t.countUpsertNewHashes()
+	stats.RehashedCount, stats.ClosingHashes = t.countUpsertRehashedNodes()
 	return t
 }
 
@@ -125,28 +127,30 @@ func (t *Tree23) Delete(keyToDelete []Felt) *Tree23 {
 func (t *Tree23) DeleteWithStats(keysToDelete []Felt, stats *Stats) *Tree23 {
 	newRoot, nextKey, intermediateKeys := delete(t.root, keysToDelete, stats)
 	t.root, _ = demote(newRoot, nextKey, intermediateKeys, stats)
-	stats.RehashedCount = t.countDeleteNewHashes()
+	stats.RehashedCount, stats.ClosingHashes = t.countDeleteRehashedNodes()
 	return t
 }
 
-func (t *Tree23) countUpsertNewHashes() (hashedCount uint) {
+func (t *Tree23) countUpsertRehashedNodes() (rehashedCount uint, closingHashes uint) {
 	t.WalkPostOrder(func(n *Node23) interface{} {
 		if n.exposed {
-			hashedCount++
+			rehashedCount++
+			closingHashes += n.howManyHashes()
 		}
 		return nil
 	})
-	return hashedCount
+	return rehashedCount, closingHashes
 }
 
-func (t *Tree23) countDeleteNewHashes() (hashedCount uint) {
+func (t *Tree23) countDeleteRehashedNodes() (rehashedCount uint, closingHashes uint) {
 	t.WalkPostOrder(func(n *Node23) interface{} {
 		if n.updated {
-			hashedCount++
+			rehashedCount++
+			closingHashes += n.howManyHashes()
 		}
 		return nil
 	})
-	return hashedCount
+	return rehashedCount, closingHashes
 }
 
 func (t *Tree23) reset() {

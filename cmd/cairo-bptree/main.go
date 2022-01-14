@@ -68,9 +68,11 @@ func bulkUpsert(keyFactory cairo_bptree.KeyFactory, kvPairs, stateChanges cairo_
 	log.Printf("UPSERT: number of nodes in the next state tree: %d\n", stateAfterUpsert.Size())
 	log.Printf("UPSERT: number of re-hashed nodes for the next state: %d\n", stats.RehashedCount)
 	log.Printf("UPSERT: number of existing nodes exposed: %d\n", stats.ExposedCount)
+	log.Printf("UPSERT: number of hashes (opening): %d\n", stats.OpeningHashes)
 	log.Printf("UPSERT: number of new nodes exposed: %d\n", stats.RehashedCount-stats.ExposedCount)
 	log.Printf("UPSERT: number of created nodes: %d\n", stats.CreatedCount)
 	log.Printf("UPSERT: number of updated values: %d\n", stats.UpdatedCount)
+	log.Printf("UPSERT: number of hashes (closing): %d\n", stats.ClosingHashes)
 
 	if options.graph {
 		stateAfterUpsert.GraphAndPicture("stateAfterUpsert")
@@ -92,9 +94,11 @@ func bulkDelete(keyFactory cairo_bptree.KeyFactory, kvPairs cairo_bptree.KeyValu
 	log.Printf("DELETE: number of nodes in the next state tree: %d\n", stateAfterDelete.Size())
 	log.Printf("DELETE: number of re-hashed nodes for the next state: %d\n", stats.RehashedCount)
 	log.Printf("DELETE: number of existing nodes exposed: %d\n", stats.ExposedCount)
+	log.Printf("DELETE: number of hashes (opening): %d\n", stats.OpeningHashes)
 	log.Printf("DELETE: number of nodes exposed unchanged: %d\n", stats.ExposedCount-stats.RehashedCount)
 	log.Printf("DELETE: number of deleted nodes: %d\n", stats.DeletedCount)
 	log.Printf("DELETE: number of updated nodes: %d\n", stats.UpdatedCount)
+	log.Printf("DELETE: number of hashes (closing): %d\n", stats.ClosingHashes)
 
 	if options.graph {
 		stateAfterDelete.GraphAndPicture("stateAfterDelete")

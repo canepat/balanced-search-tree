@@ -285,6 +285,7 @@ func (n *Node23) setNextKey(nextKey *Felt, stats *Stats) {
 	if !n.exposed {
 		n.exposed = true
 		stats.ExposedCount++
+		stats.OpeningHashes += n.howManyHashes()
 	}
 	n.updated = true
 	stats.UpdatedCount++
@@ -375,6 +376,40 @@ func (n *Node23) walkNodesPostOrder() []*Node23 {
 		nodes[i] = nodeItems[i].(*Node23)
 	}
 	return nodes
+}
+
+func (n *Node23) howManyHashes() uint {
+	if n.isLeaf {
+		switch n.keyCount() {
+		case 2:
+			nextKey := n.keys[1]
+			if nextKey == nil {
+				return 1
+			} else {
+				return 2
+			}
+		case 3:
+			nextKey := n.keys[2]
+			if nextKey == nil {
+				return 3
+			} else {
+				return 4
+			}
+		default:
+			ensure(false, fmt.Sprintf("howManyHashes: unexpected keyCount=%d\n", n.keyCount()))
+			return 0
+		}
+	} else {
+		switch n.childrenCount() {
+		case 2:
+			return 1
+		case 3:
+			return 2
+		default:
+			ensure(false, fmt.Sprintf("hashInternal: unexpected childrenCount=%d\n", n.childrenCount()))
+			return 0
+		}
+	}
 }
 
 func (n *Node23) hashNode() []byte {

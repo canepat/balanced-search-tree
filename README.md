@@ -80,6 +80,8 @@ Usage of ./cairo-bptree:
         the logging level (default "INFO")
   -nested
         flag indicating if tree should be nested or not
+  -onlyExistingKeys
+        flag indicating if only existing keys should be included in state changes or not
   -stateChangesFileName string
         the state-change file name
   -stateChangesFileSize uint
@@ -96,6 +98,12 @@ To generate state and state-changes binary files and use them to execute bulk up
 
 ```
 ./cairo-bptree -generate -stateFileSize=1073741824 -stateChangesFileSize=104857600
+```
+
+Same as above but with state-changes containing only existing keys (i.e. upsert -> never add, always update; delete -> never miss):
+
+```
+./cairo-bptree -generate -stateFileSize=1073741824 -stateChangesFileSize=104857600 -onlyExistingKeys
 ```
 
 To build state and state-changes trees and execute bulk upsert and bulk delete from binary files using 1-byte keys:

@@ -9,6 +9,7 @@ import (
 )
 
 const DEFAULT_GENERATE bool = false
+const DEFAULT_ONLY_EXISTING_KEYS bool = false
 const DEFAULT_KEY_SIZE uint = 8
 const DEFAULT_NESTED bool = false
 const DEFAULT_LOG_LEVEL string = "INFO"
@@ -27,6 +28,7 @@ func init() {
 
 	options = Options{}
 	flag.BoolVar(&options.generate, "generate", DEFAULT_GENERATE, "flag indicating if binary files shall be generated or not")
+	flag.BoolVar(&options.onlyExistingKeys, "onlyExistingKeys", DEFAULT_ONLY_EXISTING_KEYS, "flag indicating if only existing keys should be included in state changes or not")
 	flag.Uint64Var(&options.stateFileSize, "stateFileSize", 0, "the state file size in bytes")
 	flag.Uint64Var(&options.stateChangesFileSize, "stateChangesFileSize", 0, "the state-change file size in bytes")
 	flag.StringVar(&options.stateFileName, "stateFileName", "", "the state file name")
@@ -39,6 +41,7 @@ func init() {
 
 type Options struct {
 	generate		bool
+	onlyExistingKeys	bool
 	stateFileSize		uint64
 	stateChangesFileSize	uint64
 	stateFileName		string
@@ -108,55 +111,71 @@ func bulkDelete(keyFactory cairo_bptree.KeyFactory, kvPairs cairo_bptree.KeyValu
 func main() {
 	flag.Parse()
 
-	if options.generate {
-		if options.stateFileSize == 0 || options.stateChangesFileSize == 0 {
+	generate := options.generate
+	onlyExistingKeys := options.onlyExistingKeys
+	stateFileSize := options.stateFileSize
+	stateChangesFileSize := options.stateChangesFileSize
+	stateFileName := options.stateFileName
+	stateChangesFileName:= options.stateChangesFileName
+	keySize := options.keySize
+	nested := options.nested
+	logLevel := options.logLevel
+
+	if generate {
+		if stateFileSize == 0 || stateChangesFileSize == 0 {
 			log.Errorln("both -stateFileSize and -stateChangesFileSize must be present when -generate=true")
 			flag.Usage()
 			os.Exit(0)
 		}
 	} else {
-		if options.stateFileName == "" || options.stateChangesFileName == "" {
+		if stateFileName == "" || stateChangesFileName == "" {
 			log.Errorln("both -stateFileName and -stateChangesFileName must be present when -generate=false")
 			flag.Usage()
 			os.Exit(0)
 		}
 	}
 
-	level, _ := log.ParseLevel(options.logLevel)
+	level, _ := log.ParseLevel(logLevel)
 	log.SetLevel(level)
 
-	log.Printf("Generate state and state-changes files: %t\n", options.generate)
-	if options.generate {
-		log.Printf("Size of the state file in bytes: %d\n", options.stateFileSize)
-		log.Printf("Size of the state-changes file in bytes: %d\n", options.stateChangesFileSize)
+	log.Printf("Generate state and state-changes files: %t\n", generate)
+	if generate {
+		log.Printf("Size of the state file in bytes: %d\n", stateFileSize)
+		log.Printf("Size of the state-changes file in bytes: %d\n", stateChangesFileSize)
 	} else {
-		log.Printf("Name of the state file: %s\n", options.stateFileName)
-		log.Printf("Name of the state-changes file: %s\n", options.stateChangesFileName)
+		log.Printf("Name of the state file: %s\n", stateFileName)
+		log.Printf("Name of the state-changes file: %s\n", stateChangesFileName)
 	}
-	log.Printf("Size of the key in bytes: %d\n", options.keySize)
-	log.Printf("Trees are nested: %t\n", options.nested)
+	log.Printf("Size of the key in bytes: %d\n", keySize)
+	log.Printf("Trees are nested: %t\n", nested)
 
 	var stateFile, stateChangesFile *cairo_bptree.BinaryFile
 
-	if options.generate {
+	if generate {
 		log.Printf("Creating random binary state file...\n")
-		stateFile = cairo_bptree.CreateRandomBinaryFile("state", int64(options.stateFileSize))
+		stateFile = cairo_bptree.CreateBinaryFileByPRNG("state", int64(stateFileSize))
 		defer stateFile.Close()
 		log.Printf("Random binary state file created: %s\n", stateFile.Name())
-		log.Printf("Creating random binary state-changes file...\n")
-		stateChangesFile = cairo_bptree.CreateRandomBinaryFile("statechanges", int64(options.stateChangesFileSize))
+		if onlyExistingKeys {
+			log.Printf("Creating random binary state-changes file from PRNG...\n")
+			stateChangesFile = cairo_bptree.CreateBinaryFileByPRNG("statechanges", int64(stateChangesFileSize))
+		} else {
+			log.Printf("Creating random binary state-changes file from state file...\n")
+			stateChangesFile = cairo_bptree.CreateBinaryFileByRandomSampling("statechanges", int64(stateChangesFileSize), stateFile, int(keySize))
+		}
 		defer stateChangesFile.Close()
 		log.Printf("Random binary state-changes file created: %s\n", stateChangesFile.Name())
 	} else {
-		stateFile = cairo_bptree.OpenBinaryFile(options.stateFileName)
+		stateFile = cairo_bptree.OpenBinaryFile(stateFileName)
 		defer stateFile.Close()
 		log.Printf("Random binary state file opened: %s, size=%d\n", stateFile.Name(), stateFile.Size())
-		stateChangesFile = cairo_bptree.OpenBinaryFile(options.stateChangesFileName)
+
+		stateChangesFile = cairo_bptree.OpenBinaryFile(stateChangesFileName)
 		defer stateChangesFile.Close()
 		log.Printf("Random binary state-changes file opened: %s, size=%d\n", stateChangesFile.Name(), stateChangesFile.Size())
 	}
 
-	keyFactory := cairo_bptree.NewKeyBinaryFactory(int(options.keySize))
+	keyFactory := cairo_bptree.NewKeyBinaryFactory(int(keySize))
 	log.Printf("Reading unique key-value pairs from: %s\n", stateFile.Name())
 	kvPairs := keyFactory.NewUniqueKeyValues(stateFile.NewReader())
 

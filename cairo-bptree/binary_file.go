@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"fmt"
 	"io"
+	"math/big"
 	"os"
 	"strconv"
 )
@@ -19,12 +20,59 @@ type BinaryFile struct {
 	opened		bool
 }
 
-func CreateRandomBinaryFile(path string, size int64) *BinaryFile {
+type RandomBinaryReader struct {
+	sourceFile	*BinaryFile
+	keySize		int
+}
+func (r RandomBinaryReader) Read(b []byte) (n int, err error) {
+	numKeys := len(b) / r.keySize
+	for i := 0; i < numKeys; i++ {
+		bytesRead, err := r.readAtRandomOffset(b[i*r.keySize:i*r.keySize+r.keySize])
+		if err != nil {
+			return i*r.keySize + bytesRead, fmt.Errorf("cannot random read at iteration %d: %v", i, err)
+		}
+		n += bytesRead
+	}
+	remainderSize := len(b) % r.keySize
+	bytesRead, err := r.readAtRandomOffset(b[numKeys*r.keySize:numKeys*r.keySize+remainderSize])
+	if err != nil {
+		return numKeys*r.keySize + bytesRead, fmt.Errorf("cannot random read remainder %d: %v", remainderSize, err)
+	}
+	n += bytesRead
+	return n, nil
+}
+
+func (r RandomBinaryReader) readAtRandomOffset(b []byte) (n int, err error) {
+	randomValue, err := rand.Int(rand.Reader, big.NewInt(r.sourceFile.size - int64(len(b))))
+	if err != nil {
+		return 0, fmt.Errorf("cannot generate random offset: %v", err)
+	}
+	randomOffset := randomValue.Int64()
+	_, err = r.sourceFile.file.Seek(randomOffset, io.SeekStart)
+	if err != nil {
+		return 0, fmt.Errorf("cannot seek to offset %d: %v", randomOffset, err)
+	}
+	bytesRead, err := r.sourceFile.file.Read(b)
+	if err != nil {
+		return 0, fmt.Errorf("cannot read from source file: %v", err)
+	}
+	return bytesRead, nil
+}
+
+func CreateBinaryFileByRandomSampling(path string, size int64, sourceFile *BinaryFile, keySize int) *BinaryFile {
+	return CreateBinaryFileFromReader(path, size, RandomBinaryReader{sourceFile, keySize})
+}
+
+func CreateBinaryFileByPRNG(path string, size int64) *BinaryFile {
+	return CreateBinaryFileFromReader(path, size, rand.Reader)
+}
+
+func CreateBinaryFileFromReader(path string, size int64, reader io.Reader) *BinaryFile {
 	file, err := os.OpenFile(path + strconv.FormatInt(size, 10), os.O_RDWR|os.O_CREATE, 0644)
-	ensure(err == nil, fmt.Sprintf("CreateRandomBinaryFile: cannot create file %s, error %s\n", file.Name(), err))
+	ensure(err == nil, fmt.Sprintf("CreateBinaryFileFromReader: cannot create file %s, error %s\n", file.Name(), err))
 
 	err = file.Truncate(size)
-	ensure(err == nil, fmt.Sprintf("CreateRandomBinaryFile: cannot truncate file %s to %d, error %s\n", file.Name(), size, err))
+	ensure(err == nil, fmt.Sprintf("CreateBinaryFileFromReader: cannot truncate file %s to %d, error %s\n", file.Name(), size, err))
 
 	bufferedFile := bufio.NewWriter(file)
 	numBlocks := size / BLOCKSIZE
@@ -34,14 +82,14 @@ func CreateRandomBinaryFile(path string, size int64) *BinaryFile {
 		if i == numBlocks {
 			buffer = make([]byte, remainderSize)
 		}
-		bytesRead, err := io.ReadFull(rand.Reader, buffer)
-		ensure(bytesRead == len(buffer), fmt.Sprintf("CreateRandomBinaryFile: insufficient bytes read %d, error %s\n", bytesRead, err))
+		bytesRead, err := io.ReadFull(reader, buffer)
+		ensure(bytesRead == len(buffer), fmt.Sprintf("CreateBinaryFileFromReader: insufficient bytes read %d, error %s\n", bytesRead, err))
 		bytesWritten, err := bufferedFile.Write(buffer)
-		ensure(bytesWritten == len(buffer), fmt.Sprintf("CreateRandomBinaryFile: insufficient bytes written %d, error %s\n", bytesWritten, err))
+		ensure(bytesWritten == len(buffer), fmt.Sprintf("CreateBinaryFileFromReader: insufficient bytes written %d, error %s\n", bytesWritten, err))
 	}
 
 	err = bufferedFile.Flush()
-	ensure(err == nil, fmt.Sprintf("CreateRandomBinaryFile: error during flushing %s\n", err))
+	ensure(err == nil, fmt.Sprintf("CreateBinaryFileFromReader: error during flushing %s\n", err))
 
 	binaryFile := &BinaryFile{
 		path : file.Name(),

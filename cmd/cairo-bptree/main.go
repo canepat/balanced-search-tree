@@ -157,11 +157,11 @@ func main() {
 		defer stateFile.Close()
 		log.Printf("Random binary state file created: %s\n", stateFile.Name())
 		if onlyExistingKeys {
-			log.Printf("Creating random binary state-changes file from PRNG...\n")
-			stateChangesFile = cairo_bptree.CreateBinaryFileByPRNG("statechanges", int64(stateChangesFileSize))
-		} else {
 			log.Printf("Creating random binary state-changes file from state file...\n")
 			stateChangesFile = cairo_bptree.CreateBinaryFileByRandomSampling("statechanges", int64(stateChangesFileSize), stateFile, int(keySize))
+		} else {
+			log.Printf("Creating random binary state-changes file from PRNG...\n")
+			stateChangesFile = cairo_bptree.CreateBinaryFileByPRNG("statechanges", int64(stateChangesFileSize))
 		}
 		defer stateChangesFile.Close()
 		log.Printf("Random binary state-changes file created: %s\n", stateChangesFile.Name())

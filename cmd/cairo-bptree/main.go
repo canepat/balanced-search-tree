@@ -10,7 +10,7 @@ import (
 
 const DEFAULT_GENERATE bool = false
 const DEFAULT_ONLY_EXISTING_KEYS bool = false
-const DEFAULT_KEY_SIZE uint = 8
+const DEFAULT_KEY_SIZE uint = 4
 const DEFAULT_NESTED bool = false
 const DEFAULT_LOG_LEVEL string = "INFO"
 const DEFAULT_GRAPH bool = false

@@ -60,15 +60,15 @@ func (r RandomBinaryReader) readAtRandomOffset(b []byte) (n int, err error) {
 }
 
 func CreateBinaryFileByRandomSampling(path string, size int64, sourceFile *BinaryFile, keySize int) *BinaryFile {
-	return CreateBinaryFileFromReader(path, size, RandomBinaryReader{sourceFile, keySize})
+	return CreateBinaryFileFromReader(path, "_onlyexisting", size, RandomBinaryReader{sourceFile, keySize})
 }
 
 func CreateBinaryFileByPRNG(path string, size int64) *BinaryFile {
-	return CreateBinaryFileFromReader(path, size, rand.Reader)
+	return CreateBinaryFileFromReader(path, "", size, rand.Reader)
 }
 
-func CreateBinaryFileFromReader(path string, size int64, reader io.Reader) *BinaryFile {
-	file, err := os.OpenFile(path + strconv.FormatInt(size, 10), os.O_RDWR|os.O_CREATE, 0644)
+func CreateBinaryFileFromReader(path, suffix string, size int64, reader io.Reader) *BinaryFile {
+	file, err := os.OpenFile(path + strconv.FormatInt(size, 10) + suffix, os.O_RDWR|os.O_CREATE, 0644)
 	ensure(err == nil, fmt.Sprintf("CreateBinaryFileFromReader: cannot create file %s, error %s\n", file.Name(), err))
 
 	err = file.Truncate(size)

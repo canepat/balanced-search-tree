@@ -87,7 +87,7 @@ func init() {
 	options = Options{}
 	flag.StringVar(&options.stateFileName, "stateFileName", "", "the state file name")
 	flag.StringVar(&options.stateChangesFileName, "stateChangesFileName", "", "the state-change file name")
-	flag.IntVar(&options.keySize, "keySize", 8, "the key size in bytes")
+	flag.IntVar(&options.keySize, "keySize", 4, "the key size in bytes")
 	flag.BoolVar(&options.nested, "nested", false, "flag indicating if tree should be nested or not")
 	flag.StringVar(&options.logLevel, "logLevel", "INFO", "the logging level")
 	flag.BoolVar(&options.graph, "graph", false, "flag indicating if tree graph should be saved or not")

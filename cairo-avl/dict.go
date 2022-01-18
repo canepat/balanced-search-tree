@@ -2,7 +2,6 @@ package cairo_avl
 
 import (
 	"bufio"
-	"encoding/binary"
 	"fmt"
 	"io"
 	"math/rand"
@@ -214,9 +213,9 @@ func StateChangesFromBinary(statesReader *bufio.Reader, keySize int, nested bool
 		duplicated_keys := 0
 		log.Debugf("BINARY state changes key_bytes_count: %d\n", key_bytes_count)
 		for i := 0; i < key_bytes_count; i += keySize {
-			key := binary.BigEndian.Uint32(buffer[i:i+keySize])
+			key := readKey(buffer, i, keySize)
 			log.Debugf("BINARY state changes key: %d\n", key)
-			if t.Search(NewFelt(int64(key))) != nil {
+			if t.Search(key) != nil {
 				duplicated_keys++
 				continue
 			}
@@ -226,7 +225,7 @@ func StateChangesFromBinary(statesReader *bufio.Reader, keySize int, nested bool
 				nestedTree = Insert(/*T=*/nil, NewFelt(int64(i)), NewFelt(0), /*N=*/nil)
 				log.Debugf("Inserted nested tree: %+v\n", nestedTree)
 			}
-			t = Insert(t, NewFelt(int64(key)), nil, nestedTree)
+			t = Insert(t, key, nil, nestedTree)
 		}
 		log.Debugf("BINARY state changes duplicated_keys: %d\n", duplicated_keys)
 	}

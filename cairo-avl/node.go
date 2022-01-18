@@ -2,7 +2,6 @@ package cairo_avl
 
 import (
 	"bufio"
-	"encoding/binary"
 	"fmt"
 	"io"
 	"os"
@@ -278,9 +277,9 @@ func StateFromBinary(statesReader *bufio.Reader, keySize int, nested bool) (t *N
 		duplicated_keys := 0
 		log.Debugf("BINARY state key_bytes_count: %d\n", key_bytes_count)
 		for i := 0; i < key_bytes_count; i += keySize {
-			key := binary.BigEndian.Uint32(buffer[i:i+keySize])
+			key := readKey(buffer, i, keySize)
 			log.Debugf("BINARY state key: %d\n", key)
-			if t.Search(NewFelt(int64(key))) != nil {
+			if t.Search(key) != nil {
 				duplicated_keys++
 				continue
 			}
@@ -290,7 +289,7 @@ func StateFromBinary(statesReader *bufio.Reader, keySize int, nested bool) (t *N
 				nestedTree = Insert(/*T=*/nil, NewFelt(int64(i)), NewFelt(0), /*N=*/nil)
 				log.Debugf("Inserted nested tree: %+v\n", nestedTree)
 			}
-			t = Insert(t, NewFelt(int64(key)), NewFelt(0), nestedTree)
+			t = Insert(t, key, NewFelt(0), nestedTree)
 		}
 		log.Debugf("BINARY state duplicated_keys: %d\n", duplicated_keys)
 	}
@@ -341,7 +340,22 @@ func (n *Node) Graph(filename string, debug bool) {
 		} else {
 			nodeId = n.key.String()
 		}
-		s := fmt.Sprintln(n.path, " [label=\"", left, "|{<C>", nodeId, "|", down, "}|", right, "\" style=filled fillcolor=\"", colors[n.nesting()], "\"];")
+		var fc string
+		if n.heightTaken {
+			if n.exposed {
+				fc = "red"
+			} else {
+				fc = "blue"
+			}
+		} else {
+			if (n.exposed) {
+				fc = "red"
+			} else {
+				fc = "black"
+			}
+		}
+		s := fmt.Sprintln(n.path,
+			" [label=\"", left, "|{<C>", nodeId, "|", down, "}|", right, "\" style=filled fontcolor=", fc ," fillcolor=\"", colors[n.nesting()], "\"];")
 		if _, err := f.WriteString(s); err != nil {
 			log.Fatal(err)
 		}
@@ -391,7 +405,7 @@ func (n *Node) GraphAndPicture(filename string, debug bool) error {
 func exposeNode(n *Node, c *Counters) (k, v *Felt, T_L, T_R, T_N *Node) {
 	if n != nil && n.key != nil {
 		if !n.exposed {
-			if n.heightTaken {
+			if n.heightTaken && c.HeightCount > 0 {
 				c.HeightCount--
 			} else {
 				n.heightTaken = true

@@ -28,46 +28,54 @@ func K2KV(keys []Felt) ([]*Felt, []*Felt) {
 	return kv.keys, kv.values
 }
 
+func newInternalNode(children []*Node23, keys []*Felt) *Node23 {
+	return makeInternalNode(children, keys, &Stats{})
+}
+
+func newLeafNode(keys, values []*Felt) *Node23 {
+	return makeLeafNode(keys, values, &Stats{})
+}
+
 var mergeLeft2RightTestTable = []MergeTest {
 	{
-		makeInternalNode([]*Node23{
-			makeLeafNode(K2KV([]Felt{12, 127})),
+		newInternalNode([]*Node23{
+			newLeafNode(K2KV([]Felt{12, 127})),
 		}, K2K([]Felt{127})),
-		makeInternalNode([]*Node23{
-			makeLeafNode(K2KV([]Felt{127, 128})),
-			makeLeafNode(K2KV([]Felt{128, 135, 173})),
+		newInternalNode([]*Node23{
+			newLeafNode(K2KV([]Felt{127, 128})),
+			newLeafNode(K2KV([]Felt{128, 135, 173})),
 		}, K2K([]Felt{128})),
-		makeInternalNode([]*Node23{
-			makeLeafNode(K2KV([]Felt{12, 127})),
-			makeLeafNode(K2KV([]Felt{127, 128})),
-			makeLeafNode(K2KV([]Felt{128, 135, 173})),
+		newInternalNode([]*Node23{
+			newLeafNode(K2KV([]Felt{12, 127})),
+			newLeafNode(K2KV([]Felt{127, 128})),
+			newLeafNode(K2KV([]Felt{128, 135, 173})),
 		}, K2K([]Felt{127, 128})),
 	},
 	{
-		makeInternalNode([]*Node23{
-			makeInternalNode([]*Node23{
-				makeLeafNode(K2KV([]Felt{12, 127})),
+		newInternalNode([]*Node23{
+			newInternalNode([]*Node23{
+				newLeafNode(K2KV([]Felt{12, 127})),
 			}, K2K([]Felt{127})),
 		}, K2K([]Felt{44})),
-		makeInternalNode([]*Node23{
-			makeInternalNode([]*Node23{
-				makeLeafNode(K2KV([]Felt{127, 128})),
-				makeLeafNode(K2KV([]Felt{128, 135, 173})),
+		newInternalNode([]*Node23{
+			newInternalNode([]*Node23{
+				newLeafNode(K2KV([]Felt{127, 128})),
+				newLeafNode(K2KV([]Felt{128, 135, 173})),
 			}, K2K([]Felt{128})),
-			makeInternalNode([]*Node23{
-				makeLeafNode(K2KV([]Felt{173, 237})),
-				makeLeafNode(K2KV([]Felt{237, 1000})),
+			newInternalNode([]*Node23{
+				newLeafNode(K2KV([]Felt{173, 237})),
+				newLeafNode(K2KV([]Felt{237, 1000})),
 			}, K2K([]Felt{237})),
 		}, K2K([]Felt{173})),
-		makeInternalNode([]*Node23{
-			makeInternalNode([]*Node23{
-				makeLeafNode(K2KV([]Felt{12, 127})),
-				makeLeafNode(K2KV([]Felt{127, 128})),
-				makeLeafNode(K2KV([]Felt{128, 135, 173})),
+		newInternalNode([]*Node23{
+			newInternalNode([]*Node23{
+				newLeafNode(K2KV([]Felt{12, 127})),
+				newLeafNode(K2KV([]Felt{127, 128})),
+				newLeafNode(K2KV([]Felt{128, 135, 173})),
 			}, K2K([]Felt{127, 128})),
-			makeInternalNode([]*Node23{
-				makeLeafNode(K2KV([]Felt{173, 237})),
-				makeLeafNode(K2KV([]Felt{237, 1000})),
+			newInternalNode([]*Node23{
+				newLeafNode(K2KV([]Felt{173, 237})),
+				newLeafNode(K2KV([]Felt{237, 1000})),
 			}, K2K([]Felt{237})),
 		}, K2K([]Felt{173})),
 	},
@@ -75,44 +83,44 @@ var mergeLeft2RightTestTable = []MergeTest {
 
 var mergeRight2LeftTestTable = []MergeTest {
 	{
-		makeInternalNode([]*Node23{
-			makeLeafNode(K2KV([]Felt{127, 128})),
-			makeLeafNode(K2KV([]Felt{128, 135, 173})),
+		newInternalNode([]*Node23{
+			newLeafNode(K2KV([]Felt{127, 128})),
+			newLeafNode(K2KV([]Felt{128, 135, 173})),
 		}, K2K([]Felt{128})),
-		makeInternalNode([]*Node23{
-			makeLeafNode(K2KV([]Felt{173, 190})),
+		newInternalNode([]*Node23{
+			newLeafNode(K2KV([]Felt{173, 190})),
 		}, K2K([]Felt{190})),
-		makeInternalNode([]*Node23{
-			makeLeafNode(K2KV([]Felt{127, 128})),
-			makeLeafNode(K2KV([]Felt{128, 135, 173})),
-			makeLeafNode(K2KV([]Felt{173, 190})),
+		newInternalNode([]*Node23{
+			newLeafNode(K2KV([]Felt{127, 128})),
+			newLeafNode(K2KV([]Felt{128, 135, 173})),
+			newLeafNode(K2KV([]Felt{173, 190})),
 		}, K2K([]Felt{128, 173})),
 	},
 	{
-		makeInternalNode([]*Node23{
-			makeInternalNode([]*Node23{
-				makeLeafNode(K2KV([]Felt{127, 128})),
-				makeLeafNode(K2KV([]Felt{128, 135, 173})),
+		newInternalNode([]*Node23{
+			newInternalNode([]*Node23{
+				newLeafNode(K2KV([]Felt{127, 128})),
+				newLeafNode(K2KV([]Felt{128, 135, 173})),
 			}, K2K([]Felt{128})),
-			makeInternalNode([]*Node23{
-				makeLeafNode(K2KV([]Felt{173, 237})),
-				makeLeafNode(K2KV([]Felt{237, 1000})),
+			newInternalNode([]*Node23{
+				newLeafNode(K2KV([]Felt{173, 237})),
+				newLeafNode(K2KV([]Felt{237, 1000})),
 			}, K2K([]Felt{237})),
 		}, K2K([]Felt{173})),
-		makeInternalNode([]*Node23{
-			makeInternalNode([]*Node23{
-				makeLeafNode(K2KV([]Felt{1000, 1002})),
+		newInternalNode([]*Node23{
+			newInternalNode([]*Node23{
+				newLeafNode(K2KV([]Felt{1000, 1002})),
 			}, K2K([]Felt{1002})),
 		}, K2K([]Felt{1100})),
-		makeInternalNode([]*Node23{
-			makeInternalNode([]*Node23{
-				makeLeafNode(K2KV([]Felt{127, 128})),
-				makeLeafNode(K2KV([]Felt{128, 135, 173})),
+		newInternalNode([]*Node23{
+			newInternalNode([]*Node23{
+				newLeafNode(K2KV([]Felt{127, 128})),
+				newLeafNode(K2KV([]Felt{128, 135, 173})),
 			}, K2K([]Felt{128})),
-			makeInternalNode([]*Node23{
-				makeLeafNode(K2KV([]Felt{173, 237})),
-				makeLeafNode(K2KV([]Felt{237, 1000})),
-				makeLeafNode(K2KV([]Felt{1000, 1002})),
+			newInternalNode([]*Node23{
+				newLeafNode(K2KV([]Felt{173, 237})),
+				newLeafNode(K2KV([]Felt{237, 1000})),
+				newLeafNode(K2KV([]Felt{1000, 1002})),
 			}, K2K([]Felt{237, 1000})),
 		}, K2K([]Felt{173})),
 	},
@@ -120,14 +128,14 @@ var mergeRight2LeftTestTable = []MergeTest {
 
 func TestMergeLeft2Right(t *testing.T) {
 	for _, data := range mergeLeft2RightTestTable {
-		_, merged := mergeLeft2Right(data.left, data.right)
+		_, merged := mergeLeft2Right(data.left, data.right, &Stats{})
 		assertNodeEqual(t, data.final, merged)
 	}
 }
 
 func TestMergeRight2Left(t *testing.T) {
 	for _, data := range mergeRight2LeftTestTable {
-		merged, _ := mergeRight2Left(data.left, data.right)
+		merged, _ := mergeRight2Left(data.left, data.right, &Stats{})
 		assertNodeEqual(t, data.final, merged)
 	}
 }

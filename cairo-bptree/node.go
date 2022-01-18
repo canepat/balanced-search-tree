@@ -2,6 +2,7 @@ package cairo_bptree
 
 import (
 	"fmt"
+	"strings"
 	"unsafe"
 )
 
@@ -22,6 +23,17 @@ func (keys Keys) Contains(key Felt) bool {
 	return false
 }
 
+func (keys Keys) String() string {
+	b := strings.Builder{}
+	for i, k := range keys {
+		fmt.Fprintf(&b, "%v", k)
+		if i != len(keys) - 1 {
+			fmt.Fprintf(&b, " ")
+		}
+	}
+	return b.String()
+}
+
 type KeyValues struct {
 	keys   []*Felt
 	values []*Felt
@@ -36,12 +48,25 @@ func (kv KeyValues) Swap(i, j int) {
 	kv.values[i], kv.values[j] = kv.values[j], kv.values[i]
 }
 
+func (kv KeyValues) String() string {
+	b := strings.Builder{}
+	for i, k := range kv.keys {
+		v := kv.values[i]
+		fmt.Fprintf(&b, "{%v, %v}", *k, *v)
+		if i != len(kv.keys) - 1 {
+			fmt.Fprintf(&b, " ")
+		}
+	}
+	return b.String()
+}
+
 type Node23 struct {
 	isLeaf   bool
 	children []*Node23
 	keys     []*Felt
 	values   []*Felt
 	exposed  bool
+	updated  bool
 }
 
 func (n *Node23) String() string {
@@ -56,44 +81,46 @@ func (n *Node23) String() string {
 	return s
 }
 
-func makeInternalNode(children []*Node23, keys []*Felt) *Node23 {
-	n := &Node23{isLeaf: false, children: children, keys: keys, values: make([]*Felt, 0), exposed: true}
+func makeInternalNode(children []*Node23, keys []*Felt, stats *Stats) *Node23 {
+	stats.CreatedCount++
+	n := &Node23{isLeaf: false, children: children, keys: keys, values: make([]*Felt, 0), exposed: true, updated: true}
 	return n
 }
 
-func makeLeafNode(keys, values []*Felt) *Node23 {
+func makeLeafNode(keys, values []*Felt, stats *Stats) *Node23 {
 	ensure(len(keys) > 0, "number of keys is zero")
 	ensure(len(keys) == len(values), "keys and values have different cardinality")
-
-	n := &Node23{isLeaf: true, children: make([]*Node23, 0), keys: keys, values: values, exposed: true}
+	stats.CreatedCount++
+	n := &Node23{isLeaf: true, children: make([]*Node23, 0), keys: keys, values: values, exposed: true, updated: true}
 	return n
 }
 
 func makeEmptyLeafNode() *Node23 {
 	// At least nil next key is always present
-	return makeLeafNode(make([]*Felt, 1), make([]*Felt, 1))
+	return makeLeafNode(make([]*Felt, 1), make([]*Felt, 1), &Stats{}) // do not count it into stats
 }
 
-func promote(nodes []*Node23, intermediateKeys []*Felt) *Node23 {
+func promote(nodes []*Node23, intermediateKeys []*Felt, stats *Stats) *Node23 {
 	if len(nodes) > 3 {
 		promotedNodes := make([]*Node23, 0)
 		promotedKeys := make([]*Felt, 0)
 		for len(nodes) > 3 {
-			promotedNodes = append(promotedNodes, makeInternalNode(nodes[:2], intermediateKeys[:1]))
+			promotedNodes = append(promotedNodes, makeInternalNode(nodes[:2], intermediateKeys[:1], stats))
 			nodes = nodes[2:]
 			promotedKeys = append(promotedKeys, intermediateKeys[1])
 			intermediateKeys = intermediateKeys[2:]
 		}
-		promotedNodes = append(promotedNodes, makeInternalNode(nodes[:], intermediateKeys[:]))
-		return promote(promotedNodes, promotedKeys)
+		promotedNodes = append(promotedNodes, makeInternalNode(nodes[:], intermediateKeys[:], stats))
+		return promote(promotedNodes, promotedKeys, stats)
 	} else {
-		promotedRoot := makeInternalNode(nodes, intermediateKeys)
+		promotedRoot := makeInternalNode(nodes, intermediateKeys, stats)
 		return promotedRoot
 	}
 }
 
 func (n *Node23) reset() {
 	n.exposed = false
+	n.updated = false
 	if !n.isLeaf {
 		for _, child := range n.children {
 			child.reset()
@@ -102,6 +129,7 @@ func (n *Node23) reset() {
 }
 
 func (n *Node23) isValid() (bool, error) {
+	ensure(n.exposed || !n.updated, "isValid: node is not exposed but updated")
 	if n.isLeaf {
 		return n.isValidLeaf()
 	} else {
@@ -177,13 +205,6 @@ func (n *Node23) isValidInternal() (bool, error) {
 		if !childValid {
 			return false, fmt.Errorf("invalid child %v in %v, error: %v", child, n, err)
 		}
-		// Check that each leaf node except first has previous leaf with correct next key
-		/*if child.isLeaf && i > 0 {
-			previousChild := n.children[i-1]
-			if previousChild.nextKey() != child.firstKey() {
-				return false
-			}
-		}*/
 	}
 	return true, nil
 }
@@ -258,9 +279,16 @@ func (n *Node23) rawPointer() uintptr {
 	return uintptr(unsafe.Pointer(n))
 }
 
-func (n *Node23) setNextKey(nextKey *Felt) {
+func (n *Node23) setNextKey(nextKey *Felt, stats *Stats) {
 	ensure(len(n.keys) > 0, "setNextKey: node has no key")
 	n.keys[len(n.keys)-1] = nextKey
+	if !n.exposed {
+		n.exposed = true
+		stats.ExposedCount++
+		stats.OpeningHashes += n.howManyHashes()
+	}
+	n.updated = true
+	stats.UpdatedCount++
 }
 
 func (n *Node23) canonicalKeys() []Felt {
@@ -348,6 +376,40 @@ func (n *Node23) walkNodesPostOrder() []*Node23 {
 		nodes[i] = nodeItems[i].(*Node23)
 	}
 	return nodes
+}
+
+func (n *Node23) howManyHashes() uint {
+	if n.isLeaf {
+		switch n.keyCount() {
+		case 2:
+			nextKey := n.keys[1]
+			if nextKey == nil {
+				return 1
+			} else {
+				return 2
+			}
+		case 3:
+			nextKey := n.keys[2]
+			if nextKey == nil {
+				return 3
+			} else {
+				return 4
+			}
+		default:
+			ensure(false, fmt.Sprintf("howManyHashes: unexpected keyCount=%d\n", n.keyCount()))
+			return 0
+		}
+	} else {
+		switch n.childrenCount() {
+		case 2:
+			return 1
+		case 3:
+			return 2
+		default:
+			ensure(false, fmt.Sprintf("hashInternal: unexpected childrenCount=%d\n", n.childrenCount()))
+			return 0
+		}
+	}
 }
 
 func (n *Node23) hashNode() []byte {

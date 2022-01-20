@@ -380,6 +380,8 @@ func (n *Node23) walkNodesPostOrder() []*Node23 {
 
 func (n *Node23) howManyHashes() uint {
 	if n.isLeaf {
+		// all leaves except last one: 2 or 3 keys + 1 or 2 values => 3 or 5 data => 2 or 4 hashes
+		// last leaf: 1 or 2 keys + 1 or 2 values => 2 or 4 data => 1 or 3 hashes
 		switch n.keyCount() {
 		case 2:
 			nextKey := n.keys[1]
@@ -400,13 +402,14 @@ func (n *Node23) howManyHashes() uint {
 			return 0
 		}
 	} else {
+		// internal node: 2 or 3 children => 1 or 2 hashes
 		switch n.childrenCount() {
 		case 2:
 			return 1
 		case 3:
 			return 2
 		default:
-			ensure(false, fmt.Sprintf("hashInternal: unexpected childrenCount=%d\n", n.childrenCount()))
+			ensure(false, fmt.Sprintf("howManyHashes: unexpected childrenCount=%d\n", n.childrenCount()))
 			return 0
 		}
 	}

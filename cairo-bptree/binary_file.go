@@ -10,33 +10,37 @@ import (
 	"strconv"
 )
 
+// Size in bytes of data blocks read/written from/to the file system.
 const BLOCKSIZE int64 = 4096
 
+// BinaryFile type represents an open binary file.
 type BinaryFile struct {
-	path		string
-	blockSize	int64
-	size		int64
-	file		*os.File
-	opened		bool
+	path      string
+	blockSize int64
+	size      int64
+	file      *os.File
+	opened    bool
 }
 
+// RandomBinaryReader reads data chuncks randomly from a binary file.
 type RandomBinaryReader struct {
-	sourceFile	*BinaryFile
-	keySize		int
+	sourceFile *BinaryFile
+	chunckSize int
 }
+
 func (r RandomBinaryReader) Read(b []byte) (n int, err error) {
-	numKeys := len(b) / r.keySize
+	numKeys := len(b) / r.chunckSize
 	for i := 0; i < numKeys; i++ {
-		bytesRead, err := r.readAtRandomOffset(b[i*r.keySize:i*r.keySize+r.keySize])
+		bytesRead, err := r.readAtRandomOffset(b[i*r.chunckSize:i*r.chunckSize+r.chunckSize])
 		if err != nil {
-			return i*r.keySize + bytesRead, fmt.Errorf("cannot random read at iteration %d: %v", i, err)
+			return i*r.chunckSize + bytesRead, fmt.Errorf("cannot random read at iteration %d: %v", i, err)
 		}
 		n += bytesRead
 	}
-	remainderSize := len(b) % r.keySize
-	bytesRead, err := r.readAtRandomOffset(b[numKeys*r.keySize:numKeys*r.keySize+remainderSize])
+	remainderSize := len(b) % r.chunckSize
+	bytesRead, err := r.readAtRandomOffset(b[numKeys*r.chunckSize:numKeys*r.chunckSize+remainderSize])
 	if err != nil {
-		return numKeys*r.keySize + bytesRead, fmt.Errorf("cannot random read remainder %d: %v", remainderSize, err)
+		return numKeys*r.chunckSize + bytesRead, fmt.Errorf("cannot random read remainder %d: %v", remainderSize, err)
 	}
 	n += bytesRead
 	return n, nil
